@@ -120,3 +120,8 @@ function medirPerformance(nome, fn) {
   }
   return resultado;
 }
+
+function limitarRegistrosTela_(registros) {
+  var limite = 1200;
+  return (registros || []).slice(0, limite);
+}

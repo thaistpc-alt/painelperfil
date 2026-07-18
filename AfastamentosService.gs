@@ -1,12 +1,15 @@
 function carregarAfastamentos() {
   return medirPerformance("carregarAfastamentos", () => {
     const preparado = prepararAfastamentos_();
+    const registros = limitarRegistrosTela_(preparado.registros);
     return {
       updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
       opcoes: opcoesComuns_(preparado.registros),
       anos: Array.from(new Set(preparado.registros.map(r => r.ano).filter(Boolean))).sort(),
-      registros: preparado.registros,
+      registros: registros,
       origem: preparado.origem,
+      totalRegistros: preparado.registros.length,
+      retornoLimitado: registros.length < preparado.registros.length,
       colunasIndicadores: {
         totalAfastamentos: "cada linha válida de BD AFASTAMENTOS",
         colaborador: "CHAPA quando preenchida; NOME como fallback",

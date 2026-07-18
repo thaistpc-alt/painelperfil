@@ -1,12 +1,15 @@
 function carregarVacinas() {
   return medirPerformance("carregarVacinas", () => {
     const preparado = prepararVacinas_();
+    const registros = limitarRegistrosTela_(preparado.registros);
     return {
       updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
       opcoes: opcoesComuns_(preparado.registros),
       vacinas: CONFIG.vaccines.map(v => ({ id: v.id, label: v.label })),
-      registros: preparado.registros,
+      registros: registros,
       origem: preparado.origem,
+      totalRegistros: preparado.registros.length,
+      retornoLimitado: registros.length < preparado.registros.length,
       regraPendencia: "Prioridade: coluna consolidada da vacina; depois esquema consolidado; por último doses."
     };
   });

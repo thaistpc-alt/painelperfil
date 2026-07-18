@@ -1,11 +1,14 @@
 function carregarPatologias() {
   return medirPerformance("carregarPatologias", () => {
     const preparado = prepararPatologias_();
+    const registros = limitarRegistrosTela_(preparado.registros);
     return {
       updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
       opcoes: opcoesComuns_(preparado.registros),
-      registros: preparado.registros,
-      origem: preparado.origem
+      registros: registros,
+      origem: preparado.origem,
+      totalRegistros: preparado.registros.length,
+      retornoLimitado: registros.length < preparado.registros.length
     };
   });
 }

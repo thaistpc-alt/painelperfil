@@ -1,12 +1,15 @@
 function carregarAcidentes() {
   return medirPerformance("carregarAcidentes", () => {
     const preparado = prepararAcidentes_();
+    const registros = limitarRegistrosTela_(preparado.registros);
     return {
       updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
       opcoes: opcoesComuns_(preparado.registros),
       anos: Array.from(new Set(preparado.registros.map(r => r.ano).filter(Boolean))).sort(),
-      registros: preparado.registros,
-      origem: preparado.origem
+      registros: registros,
+      origem: preparado.origem,
+      totalRegistros: preparado.registros.length,
+      retornoLimitado: registros.length < preparado.registros.length
     };
   });
 }
@@ -81,11 +84,14 @@ function carregarTratativasAcidentes() {
         observacoes: r.tratamentoObs || r["OBS"] || ""
       };
     });
+    const retorno = limitarRegistrosTela_(registros);
     return {
       updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
-      registros,
+      registros: retorno,
       opcoes: opcoesComuns_(registros),
       origem: { aba: CONFIG.sheets.examesAcidentes.name, headerRow: CONFIG.sheets.examesAcidentes.headerRow, headers: base.headers, linhasLidas: base.linhasLidas || 0 },
+      totalRegistros: registros.length,
+      retornoLimitado: retorno.length < registros.length,
       colunasSugeridas: CONFIG.treatmentWriteColumns
     };
   });

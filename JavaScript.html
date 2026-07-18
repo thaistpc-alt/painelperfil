@@ -114,11 +114,23 @@ function carregarDadosModulo(page, force) {
   const fn = calls[page];
   if (!fn) return;
   mostrarLoading("Carregando dados...");
-  google.script.run.withSuccessHandler(ret => {
+  const runner = google.script.run.withSuccessHandler(ret => {
     APP.dataCache[page] = ret || {};
     esconderLoading();
     renderizarModulo(page);
-  }).withFailureHandler(erroPortal)[fn]();
+  }).withFailureHandler(erroPortal);
+  chamarBackendModulo(runner, fn);
+}
+
+function chamarBackendModulo(runner, fn) {
+  if (fn === "carregarResumoPerfil") return runner.carregarResumoPerfil();
+  if (fn === "carregarPatologias") return runner.carregarPatologias();
+  if (fn === "carregarAfastamentos") return runner.carregarAfastamentos();
+  if (fn === "carregarVacinas") return runner.carregarVacinas();
+  if (fn === "carregarExames") return runner.carregarExames();
+  if (fn === "carregarTratativasAcidentes") return runner.carregarTratativasAcidentes();
+  if (fn === "carregarAcidentes") return runner.carregarAcidentes();
+  throw new Error("Função de backend não mapeada: " + fn);
 }
 
 function recarregarPaginaAtual() {
