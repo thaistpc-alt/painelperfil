@@ -30,11 +30,11 @@ function prepararPatologias_() {
       idade: numeroSeguro(r.idade),
       cids: [],
       familiasCid: [],
-      atividadeFisica: limparTexto(r["PRATICA ATIVIDADE"]) || limparTexto(r["PRATICA EXERCICIOS"]) || "Nao informado",
-      etilismo: valorPatologiaColuna_(r, 13, ["ETILISTA", "ETILISMO"]) || "Nao informado",
-      tabagismo: valorPatologiaColuna_(r, 14, ["TABAGISTA", "TABAGISMO"]) || "Nao informado"
+      atividadeFisica: valorPatologiaColuna_(r, 11, ["PRATICA ATIVIDADE", "PRATICA EXERCICIOS", "EXERCICIO FISICO"]) || "N\u00e3o informado",
+      etilismo: valorPatologiaColuna_(r, 13, ["ETILISTA", "ETILISMO"]) || "N\u00e3o informado",
+      tabagismo: valorPatologiaColuna_(r, 14, ["TABAGISTA", "TABAGISMO"]) || "N\u00e3o informado"
     };
-    atualizarSeInformado_(atual, "atividadeFisica", limparTexto(r["PRATICA ATIVIDADE"]) || limparTexto(r["PRATICA EXERCICIOS"]));
+    atualizarSeInformado_(atual, "atividadeFisica", valorPatologiaColuna_(r, 11, ["PRATICA ATIVIDADE", "PRATICA EXERCICIOS", "EXERCICIO FISICO"]));
     atualizarSeInformado_(atual, "etilismo", valorPatologiaColuna_(r, 13, ["ETILISTA", "ETILISMO"]));
     atualizarSeInformado_(atual, "tabagismo", valorPatologiaColuna_(r, 14, ["TABAGISTA", "TABAGISMO"]));
     cids.forEach(cid => { if (atual.cids.indexOf(cid) === -1) atual.cids.push(cid); });

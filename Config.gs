@@ -1,6 +1,6 @@
 var CONFIG = {
   spreadsheetId: "1ap49yRtC1HfT89yYFMmHPXZlvUyLGqeEGx9LuwoD-rY",
-  cachePrefix: "PAINEL_PERFIL_SAUDE_V80_",
+  cachePrefix: "PAINEL_PERFIL_SAUDE_V82_",
   cacheTime: 300,
   pageSize: 50,
   sheets: {
