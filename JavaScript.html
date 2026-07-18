@@ -280,7 +280,7 @@ function renderPerfil() {
   ].join(""));
   renderBars("perfilFamilias", grupoCids(rows, "familiasCid"), 12);
   renderBars("perfilTopCids", grupoCids(rows, "cids"), 10);
-  renderBars("perfilPatAf", cruzarPatAf(rows, data.eventos.afastamentos || []), 12);
+  renderBars("perfilPatAf", cruzarPatAf(rows, ((data.eventos || {}).afastamentos || [])), 12);
   renderBars("perfilHabitos", grupoHabitos(rows), 12);
 }
 

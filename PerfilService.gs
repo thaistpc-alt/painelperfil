@@ -1,19 +1,16 @@
 function carregarResumoPerfil() {
   return medirPerformance("carregarResumoPerfil", () => {
     const perfil = carregarRegistrosPerfil_();
-    const patologias = prepararPatologias_();
-    const afastamentos = prepararAfastamentos_();
-    const vacinas = prepararVacinas_();
-    const acidentes = prepararAcidentes_();
+    const vacinas = executarModuloSeguro_("vacinas", prepararVacinas_, { registros: [] });
 
     const mapaPat = {};
-    patologias.registros.forEach(r => { mapaPat[r.key] = r; });
+    const patologias = { registros: [] };
     const mapaVac = {};
     vacinas.registros.forEach(r => { mapaVac[r.key] = r; });
     const mapaAfast = {};
-    afastamentos.registros.forEach(r => { mapaAfast[r.key] = (mapaAfast[r.key] || 0) + 1; });
+    const afastamentos = { registros: [] };
     const mapaAcid = {};
-    acidentes.registros.forEach(r => { mapaAcid[r.key] = (mapaAcid[r.key] || 0) + 1; });
+    const acidentes = { registros: [] };
 
     const colaboradores = perfil.map(p => {
       const pat = mapaPat[p.key] || {};
@@ -42,11 +39,14 @@ function carregarResumoPerfil() {
       },
       diagnosticoResumo: {
         colaboradoresPerfil: colaboradores.length,
-        patologiasComCid: patologias.registros.filter(r => r.cids.length).length,
-        eventosAfastamento: afastamentos.registros.length,
+        patologiasComCid: null,
+        eventosAfastamento: null,
         registrosVacinas: vacinas.registros.length,
-        eventosAcidentes: acidentes.registros.length
-      }
+        eventosAcidentes: null
+      },
+      observacoes: [
+        "A abertura carrega Perfil e Vacinas. Patologias, Afastamentos e Acidentes são carregados sob demanda nas respectivas abas para evitar timeout."
+      ]
     };
   });
 }
@@ -54,4 +54,14 @@ function carregarResumoPerfil() {
 function testarPerfilSaude() {
   const dados = carregarResumoPerfil();
   return { sucesso: true, colaboradores: dados.colaboradores.length, performance: dados.performance };
+}
+
+function executarModuloSeguro_(nome, fn, fallback) {
+  try {
+    return fn();
+  } catch (e) {
+    const ret = fallback || {};
+    ret.erro = "Falha ao carregar " + nome + ": " + (e && e.message ? e.message : e);
+    return ret;
+  }
 }
