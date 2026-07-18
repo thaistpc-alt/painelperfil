@@ -8,6 +8,7 @@ var CONFIG = {
     patologias: { name: "BD PATOLOGIAS", headerRow: 1, keyAliases: ["COL_1", "NOME"], fieldFallbacks: { mat: "COL_1" } },
     vacinas: { name: "BD VACINAS", headerRow: 1, keyAliases: ["MAT", "NOME"] },
     afastamentos: { name: "BD AFASTAMENTOS", headerRow: 3, keyAliases: ["CHAPA", "NOME"] },
+    exames: { name: "BD EXAMES COMPLEMENTARES", headerRow: 1, keyAliases: ["MAT", "NOME"] },
     acidentes: { name: "BD ACIDENTES", headerRow: 1, keyAliases: ["CÓD.", "MAT", "NOME"] },
     examesAcidentes: { name: "EXAMES ACIDENTES", headerRow: 2, keyAliases: ["MAT", "COLABORADOR ", "DATA DO ACIDENTE"] }
   },

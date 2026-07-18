@@ -33,6 +33,7 @@ function carregarConfiguracoes() {
     patologias: { name: "BD PATOLOGIAS", headerRow: 1 },
     vacinas: { name: "BD VACINAS", headerRow: 1 },
     afastamentos: { name: "BD AFASTAMENTOS", headerRow: 3 },
+    exames: { name: "BD EXAMES COMPLEMENTARES", headerRow: 1 },
     acidentes: { name: "BD ACIDENTES", headerRow: 1 },
     examesAcidentes: { name: "EXAMES ACIDENTES", headerRow: 2 }
   };
@@ -63,7 +64,7 @@ function carregarConfiguracoes() {
 function limparCachePerfilSaude() {
   CacheService.getScriptCache().removeAll([
     chaveCache("perfil"), chaveCache("patologias"), chaveCache("afastamentos"),
-    chaveCache("vacinas"), chaveCache("exames"), chaveCache("acidentes"), chaveCache("diagnostico")
+    chaveCache("vacinas"), chaveCache("exames"), chaveCache("seguimento"), chaveCache("acidentes"), chaveCache("diagnostico")
   ]);
   return { sucesso: true, mensagem: "Cache limpo." };
 }
@@ -94,6 +95,7 @@ function autorizarPainelPerfilSaude() {
       patologias: { name: "BD PATOLOGIAS" },
       vacinas: { name: "BD VACINAS" },
       afastamentos: { name: "BD AFASTAMENTOS" },
+      exames: { name: "BD EXAMES COMPLEMENTARES" },
       acidentes: { name: "BD ACIDENTES" },
       examesAcidentes: { name: "EXAMES ACIDENTES" }
     }
@@ -141,5 +143,43 @@ function diagnosticoRuntimePainel() {
     configDisponivel: typeof CONFIG !== "undefined",
     funcoes: status,
     data: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss")
+  };
+}
+
+function testarCarregamentoModulosPainel() {
+  var testes = {
+    configuracoes: function() { return carregarConfiguracoes(); },
+    perfil: function() { return carregarResumoPerfil(); },
+    patologias: function() { return carregarPatologias(); },
+    afastamentos: function() { return carregarAfastamentos(); },
+    vacinas: function() { return carregarVacinas(); },
+    exames: function() { return carregarExames(); },
+    seguimento: function() { return carregarTratativasAcidentes(); },
+    acidentes: function() { return carregarAcidentes(); }
+  };
+  var saida = {};
+  Object.keys(testes).forEach(function(nome) {
+    var inicio = Date.now();
+    try {
+      saida[nome] = resumoRetornoModulo_(testes[nome](), Date.now() - inicio);
+    } catch (e) {
+      saida[nome] = { sucesso: false, erro: e && e.stack ? e.stack : String(e), tempoMs: Date.now() - inicio };
+    }
+  });
+  return saida;
+}
+
+function resumoRetornoModulo_(ret, tempoMs) {
+  ret = ret || {};
+  return {
+    sucesso: true,
+    tempoMs: tempoMs,
+    updatedAt: ret.updatedAt || "",
+    registros: ret.registros ? ret.registros.length : "",
+    colaboradores: ret.colaboradores ? ret.colaboradores.length : "",
+    totalRegistros: ret.totalRegistros || "",
+    retornoLimitado: !!ret.retornoLimitado,
+    origem: ret.origem || "",
+    performance: ret.performance || ""
   };
 }

@@ -99,7 +99,7 @@ function trocarPagina(page) {
 
 function carregarDadosModulo(page, force) {
   if (APP.dataCache[page] && !force) {
-    renderizarModulo(page);
+    renderizarModuloSeguro(page);
     return;
   }
   const calls = {
@@ -117,7 +117,7 @@ function carregarDadosModulo(page, force) {
   const runner = google.script.run.withSuccessHandler(ret => {
     APP.dataCache[page] = ret || {};
     esconderLoading();
-    renderizarModulo(page);
+    renderizarModuloSeguro(page);
   }).withFailureHandler(erroPortal);
   chamarBackendModulo(runner, fn);
 }
@@ -138,6 +138,15 @@ function recarregarPaginaAtual() {
   carregarDadosModulo(APP.page, true);
 }
 
+function renderizarModuloSeguro(page) {
+  try {
+    renderizarModulo(page);
+  } catch (erro) {
+    esconderLoading();
+    mostrarErroRenderizacao(page, erro, APP.dataCache[page]);
+  }
+}
+
 function renderizarModulo(page) {
   setText("atualizadoEm", "Atualizado em " + ((APP.dataCache[page] || {}).updatedAt || (APP.config || {}).updatedAt || "-"));
   if (page === "perfil") renderPerfil();
@@ -147,6 +156,30 @@ function renderizarModulo(page) {
   if (page === "exames") renderExames();
   if (page === "seguimento") renderSeguimento();
   if (page === "acidentes") renderAcidentes();
+}
+
+function mostrarErroRenderizacao(page, erro, dados) {
+  const msg = erro && erro.message ? erro.message : String(erro || "Erro desconhecido");
+  const stack = erro && erro.stack ? erro.stack : "";
+  const resumo = resumoDadosModulo(dados || {});
+  const html = '<div class="empty error-box"><b>Erro ao desenhar este módulo</b><br>' +
+    esc(msg) + (stack ? '<pre>' + esc(stack) + '</pre>' : '') +
+    '<small>' + esc(resumo) + '</small></div>';
+  const alvoFiltros = document.getElementById(page + "Filtros");
+  const alvoCards = document.getElementById(page + "Cards");
+  if (alvoFiltros) alvoFiltros.innerHTML = html;
+  if (alvoCards) alvoCards.innerHTML = "";
+  if (!alvoFiltros) setHtml("conteudo", html);
+}
+
+function resumoDadosModulo(dados) {
+  const partes = [];
+  if (dados.registros) partes.push("registros=" + dados.registros.length);
+  if (dados.colaboradores) partes.push("colaboradores=" + dados.colaboradores.length);
+  if (dados.totalRegistros) partes.push("totalRegistros=" + dados.totalRegistros);
+  if (dados.retornoLimitado) partes.push("retornoLimitado=true");
+  if (dados.origem && dados.origem.aba) partes.push("origem=" + dados.origem.aba + " linhas=" + (dados.origem.linhasLidas || 0));
+  return partes.join(" | ") || "Sem resumo de dados recebido.";
 }
 
 function renderFiltros(module, data, extras) {

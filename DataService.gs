@@ -95,7 +95,24 @@ function montarRegistro(row, headers, headerMap, rowNumber, cfg) {
 }
 
 function regValido(reg) {
-  return !!(reg && reg.key);
+  if (!(reg && reg.key)) return false;
+  if (linhaCabecalhoRepetida_(reg)) return false;
+  if (normalizarTexto(reg.nome) === "NOME" && normalizarTexto(reg.status) === "STATUS") return false;
+  return true;
+}
+
+function linhaCabecalhoRepetida_(reg) {
+  const raw = reg._raw || [];
+  const headers = reg._headers || [];
+  let preenchidas = 0;
+  let iguaisAoCabecalho = 0;
+  for (let i = 0; i < headers.length; i++) {
+    const valor = limparTexto(raw[i]);
+    if (!valor) continue;
+    preenchidas++;
+    if (normalizarTexto(valor) === normalizarTexto(headers[i])) iguaisAoCabecalho++;
+  }
+  return preenchidas >= 3 && iguaisAoCabecalho >= Math.min(3, preenchidas);
 }
 
 function carregarRegistrosPerfil_() {
