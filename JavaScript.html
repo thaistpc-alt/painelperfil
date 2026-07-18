@@ -199,12 +199,14 @@ function renderFiltros(module, data, extras) {
 }
 
 function filtroMulti(module, type, label, options, checked) {
+  options = listaOpcoes(options);
   return '<div class="filter-group"><label>' + esc(label) + '</label><button type="button" class="multi-btn" id="' + module + '_' + type + '_btn" onclick="toggleMulti(\'' + module + '\',\'' + type + '\')"><span>Todos selecionados</span><b>▾</b></button><div class="multi-panel" id="' + module + '_' + type + '_panel">' +
     '<input class="multi-search" placeholder="Pesquisar" oninput="filtrarMulti(\'' + module + '\',\'' + type + '\',this.value)"><div class="multi-actions"><button onclick="marcarMulti(\'' + module + '\',\'' + type + '\',true)" type="button">Todos</button><button onclick="marcarMulti(\'' + module + '\',\'' + type + '\',false)" type="button">Limpar</button></div>' +
     (options || []).map(v => rowCheck(module, type, v, checked)).join("") + '</div></div>';
 }
 
 function filtroMultiStatus(module, options) {
+  options = listaOpcoes(options);
   return '<div class="filter-group"><label>Status do colaborador</label><button type="button" class="multi-btn" id="' + module + '_status_btn" onclick="toggleMulti(\'' + module + '\',\'status\')"><span>Status padrão</span><b>▾</b></button><div class="multi-panel" id="' + module + '_status_panel">' +
     '<input class="multi-search" placeholder="Pesquisar status" oninput="filtrarMulti(\'' + module + '\',\'status\',this.value)"><div class="multi-actions"><button onclick="statusPadrao(\'' + module + '\')" type="button">Padrão</button><button onclick="marcarMulti(\'' + module + '\',\'status\',true)" type="button">Todos</button><button onclick="marcarMulti(\'' + module + '\',\'status\',false)" type="button">Limpar</button></div>' +
     (options || []).map(o => rowCheck(module, "status", o.nome || o, !!o.selected)).join("") + '</div></div>';
@@ -215,8 +217,15 @@ function rowCheck(module, type, value, checked) {
 }
 
 function filtroSelect(module, type, label, options, first) {
-  const lista = options || [];
+  const lista = listaOpcoes(options);
   return '<div class="filter-group"><label>' + esc(label) + '</label><select class="filter-input" id="' + module + '_' + type + '" onchange="aplicarFiltros(\'' + module + '\')"><option value="">' + esc(first || "Todos") + '</option>' + lista.map(v => '<option value="' + escAttr(v) + '">' + esc(v) + '</option>').join("") + '</select></div>';
+}
+
+function listaOpcoes(options) {
+  if (!options) return [];
+  if (Array.isArray(options)) return options;
+  if (typeof options === "object") return Object.keys(options).sort();
+  return [String(options)];
 }
 
 function toggleMulti(module, type) {
