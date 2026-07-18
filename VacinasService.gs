@@ -28,6 +28,9 @@ function prepararVacinas_() {
       if (!completa) pendencias.push(v.label);
     });
     const situacaoGeral = limparTexto(r.situacaoVacinal);
+    const dtDatas = ["dT (1º DOSE)", "dT (2º DOSE)", "dT (3º DOSE)", "REFORÇO dT"].map(c => r[c]).filter(Boolean);
+    const hepBDatas = ["HEP. B (1º DOSE)", "HEP. B (2º DOSE)", "HEP. B (3º DOSE)", "NOVO ESQ HEP B 1 DOSE", "NOVO ESQ HEP B 2 DOSE"].map(c => r[c]).filter(Boolean);
+    const covidDatas = ["ULTIMA DOSE"].map(c => r[c]).filter(Boolean);
     const completoGeral = normalizarTexto(situacaoGeral).indexOf("ATUALIZAD") !== -1 || pendencias.length === 0;
     return {
       key: r.key, mat: r.mat, nome: r.nome, status: r.status, setor: r.setor, funcao: r.funcao, sexo: r.sexo,
@@ -36,14 +39,32 @@ function prepararVacinas_() {
       completoGeral,
       pendencias,
       dtProximoReforco: r["PRÓXIMO REFORÇO DT"],
-      dtDatas: ["dT (1º DOSE)", "dT (2º DOSE)", "dT (3º DOSE)", "REFORÇO dT"].map(c => r[c]).filter(Boolean),
-      hepBDatas: ["HEP. B (1º DOSE)", "HEP. B (2º DOSE)", "HEP. B (3º DOSE)", "NOVO ESQ HEP B 1 DOSE", "NOVO ESQ HEP B 2 DOSE"].map(c => r[c]).filter(Boolean)
+      dtDatas,
+      hepBDatas,
+      covidDatas,
+      vacinaEventos: eventosVacinaPorAno_(dtDatas, "dT").concat(eventosVacinaPorAno_(hepBDatas, "Hepatite B")).concat(eventosVacinaPorAno_(covidDatas, "COVID"))
     };
   });
   return {
     origem: { aba: CONFIG.sheets.vacinas.name, headerRow: CONFIG.sheets.vacinas.headerRow, headers: base.headers, linhasLidas: base.linhasLidas || 0 },
     registros
   };
+}
+
+function eventosVacinaPorAno_(datas, tipo) {
+  return (datas || [])
+    .map(data => ({ tipo, ano: obterAnoVacina_(data) }))
+    .filter(e => e.ano);
+}
+
+function obterAnoVacina_(valor) {
+  const texto = limparTexto(valor);
+  if (!texto) return "";
+  const match = texto.match(/\b(19\d{2}|20\d{2})\b/);
+  if (!match) return "";
+  const ano = Number(match[1]);
+  const anoAtual = new Date().getFullYear() + 1;
+  return ano >= 1990 && ano <= anoAtual ? String(ano) : "";
 }
 
 function primeiroValorAliases_(r, aliases) {

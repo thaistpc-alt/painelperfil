@@ -1,12 +1,54 @@
 <div class="module" data-module="perfil">
-  <section class="filter-card" id="perfilFiltros"></section>
+  <section class="filter-card sticky-filter" id="perfilFiltros"></section>
+
+  <section class="section-title">
+    <h3>Perfil de Saude</h3>
+    <p>Colaboradores considerados no filtro atual.</p>
+  </section>
   <section class="kpi-grid" id="perfilCards"></section>
+
+  <section class="section-title">
+    <h3>Habitos de vida</h3>
+    <p>Pratica de exercicio, tabagismo e etilismo informados nas bases.</p>
+  </section>
   <section class="grid two">
-    <div class="panel"><h3>Famílias CID</h3><p>Distribuição dos colaboradores com patologias.</p><div id="perfilFamilias"></div></div>
+    <div class="panel"><h3>Exercicio fisico</h3><p>Distribuicao dos colaboradores filtrados.</p><div id="perfilAtividade"></div></div>
+    <div class="panel"><h3>Tabagismo</h3><p>Distribuicao dos colaboradores filtrados.</p><div id="perfilTabagismo"></div></div>
+    <div class="panel wide"><h3>Etilismo</h3><p>Distribuicao dos colaboradores filtrados.</p><div id="perfilEtilismo"></div></div>
+  </section>
+
+  <section class="section-title">
+    <h3>Vacinacao</h3>
+    <p>Cobertura, pendencias e vacinas aplicadas.</p>
+  </section>
+  <section class="kpi-grid" id="perfilVacinasCards"></section>
+  <section class="grid two">
+    <div class="panel"><h3>Vacinas aplicadas no ano</h3><p>Quantidade por tipo no ano selecionado ou no ano atual.</p><div id="perfilVacinasAno"></div></div>
+    <div class="panel"><h3>Pendencias por vacina</h3><p>Colaboradores com pendencia por tipo.</p><div id="perfilVacinasPendencias"></div></div>
+  </section>
+  <section class="grid two">
+    <div class="panel wide"><h3>Pendencias por setor</h3><p>Ranking de setores com pendencia vacinal. Passe o mouse para ver o detalhamento por vacina.</p><div id="perfilVacinasSetor"></div></div>
+  </section>
+
+  <section class="section-title">
+    <h3>Patologias</h3>
+    <p>CIDs e colaboradores com patologias registradas.</p>
+  </section>
+  <section class="kpi-grid" id="perfilPatologiasCards"></section>
+  <section class="grid two">
+    <div class="panel"><h3>Patologia por familia</h3><p>Distribuicao por familia CID.</p><div id="perfilFamilias"></div></div>
     <div class="panel"><h3>Top 10 CIDs</h3><p>CIDs mais frequentes no filtro atual.</p><div id="perfilTopCids"></div></div>
   </section>
   <section class="grid two">
-    <div class="panel"><h3>Patologias x afastamentos</h3><p>Cruzamento por família CID.</p><div id="perfilPatAf"></div></div>
-    <div class="panel"><h3>Hábitos e vacinas</h3><p>Atividade física, tabagismo e situação vacinal.</p><div id="perfilHabitos"></div></div>
+    <div class="panel wide"><h3>Ranking de patologias por setor</h3><p>Colaboradores com CID informado por setor.</p><div id="perfilPatologiasSetor"></div></div>
+  </section>
+
+  <section class="section-title">
+    <h3>Afastamentos</h3>
+    <p>Cruzamento de afastamentos com patologias registradas.</p>
+  </section>
+  <section class="grid two">
+    <div class="panel"><h3>Afastamentos por familia CID das patologias</h3><p>Familias das patologias e quantidade de afastamentos na mesma familia.</p><div id="perfilPatAfFamilia"></div></div>
+    <div class="panel"><h3>Afastamentos por Top 10 CIDs das patologias</h3><p>CIDs mais frequentes em patologias e afastamentos correspondentes.</p><div id="perfilPatAfCids"></div></div>
   </section>
 </div>

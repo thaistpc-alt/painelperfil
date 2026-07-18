@@ -95,9 +95,14 @@ function classificarSexo(valor) {
 
 function statusPadraoSelecionado(status) {
   const s = normalizarTexto(status || "Não informado");
-  if (!s || s === "NAO INFORMADO" || s === "NÃO INFORMADO") return true;
-  if (CONFIG.statusRules.exceptionalKeywords.some(k => s.indexOf(normalizarTexto(k)) !== -1)) return false;
-  return CONFIG.statusRules.normalKeywords.some(k => s.indexOf(normalizarTexto(k)) !== -1);
+  const semHifen = s.replace(/[-–—]/g, " ");
+  if (!s || s === "NAO INFORMADO" || s === "NÃO INFORMADO") return false;
+  if (CONFIG.statusRules.exceptionalKeywords.some(k => semHifen.indexOf(normalizarTexto(k).replace(/[-–—]/g, " ")) !== -1)) return false;
+  if (s === "ATIVO") return true;
+  return CONFIG.statusRules.normalKeywords.some(k => {
+    const key = normalizarTexto(k).replace(/[-–—]/g, " ");
+    return key && semHifen.indexOf(key) !== -1;
+  });
 }
 
 function montarOpcoesStatus_(statusList) {

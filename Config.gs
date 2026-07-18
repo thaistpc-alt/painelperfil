@@ -83,8 +83,8 @@ var CONFIG = {
     "GLICEMIA", "RAIO X", "AVALIAÇÃO PSICOSSOCIAL"
   ],
   statusRules: {
-    normalKeywords: ["ATIVO", "REABILITADO", "GESTANTE", "NAO INFORMADO", "NÃO INFORMADO"],
-    exceptionalKeywords: ["DESLIG", "OBITO", "ÓBITO", "FALECID", "TRANSFER", "SUSPENS", "APOSENT", "AFASTADO", "INSS", "LICENCA MATERNIDADE", "LICENÇA MATERNIDADE"]
+    normalKeywords: ["ATIVO", "REABILITADO", "GESTANTE", "LICENCA MATERNIDADE", "LICENÇA MATERNIDADE"],
+    exceptionalKeywords: ["DESLIG", "OBITO", "ÓBITO", "FALECID", "TRANSFER", "SUSPENS", "APOSENT", "AFASTADO", "INSS"]
   },
   treatmentWriteColumns: [
     { name: "PEP REALIZADA?", purpose: "Registrar se a PEP foi iniciada/realizada", defaultValue: "", suggestedAfter: "DATA DO ACIDENTE" },

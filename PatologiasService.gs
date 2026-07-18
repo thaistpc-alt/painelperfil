@@ -20,11 +20,23 @@ function prepararPatologias_() {
     const cids = extrairCidsPatologia_(r);
     const familias = Array.from(new Set(cids.map(familiaCid).filter(Boolean))).sort();
     const atual = porPessoa[r.key] || {
-      key: r.key, mat: r.mat, nome: r.nome, status: r.status, setor: r.setor, funcao: r.funcao,
-      sexo: r.sexo, idade: numeroSeguro(r.idade), cids: [], familiasCid: [],
-      atividadeFisica: limparTexto(r["PRATICA ATIVIDADE"]) || limparTexto(r["PRATICA EXERCÍCIOS"]) || "Não informado",
-      tabagismo: limparTexto(r["TABAGISTA"]) || "Não informado"
+      key: r.key,
+      mat: r.mat,
+      nome: r.nome,
+      status: r.status,
+      setor: r.setor,
+      funcao: r.funcao,
+      sexo: r.sexo,
+      idade: numeroSeguro(r.idade),
+      cids: [],
+      familiasCid: [],
+      atividadeFisica: limparTexto(r["PRATICA ATIVIDADE"]) || limparTexto(r["PRATICA EXERCICIOS"]) || "Nao informado",
+      etilismo: valorPatologiaColuna_(r, 13, ["ETILISTA", "ETILISMO"]) || "Nao informado",
+      tabagismo: valorPatologiaColuna_(r, 14, ["TABAGISTA", "TABAGISMO"]) || "Nao informado"
     };
+    atualizarSeInformado_(atual, "atividadeFisica", limparTexto(r["PRATICA ATIVIDADE"]) || limparTexto(r["PRATICA EXERCICIOS"]));
+    atualizarSeInformado_(atual, "etilismo", valorPatologiaColuna_(r, 13, ["ETILISTA", "ETILISMO"]));
+    atualizarSeInformado_(atual, "tabagismo", valorPatologiaColuna_(r, 14, ["TABAGISTA", "TABAGISMO"]));
     cids.forEach(cid => { if (atual.cids.indexOf(cid) === -1) atual.cids.push(cid); });
     familias.forEach(f => { if (atual.familiasCid.indexOf(f) === -1) atual.familiasCid.push(f); });
     porPessoa[r.key] = atual;
@@ -35,10 +47,23 @@ function prepararPatologias_() {
   };
 }
 
+function atualizarSeInformado_(obj, campo, valor) {
+  const limpo = limparTexto(valor);
+  if (limpo && normalizarTexto(obj[campo]).indexOf("NAO INFORMADO") !== -1) obj[campo] = limpo;
+}
+
+function valorPatologiaColuna_(r, index, aliases) {
+  for (let i = 0; i < aliases.length; i++) {
+    const valor = limparTexto(r[aliases[i]]);
+    if (valor) return valor;
+  }
+  return limparTexto((r._raw || [])[index]);
+}
+
 function extrairCidsPatologia_(r) {
   const cids = [];
   Object.keys(r).forEach(k => {
-    if (/DOENÇAS PREVIAS - CID/i.test(k) || /DOENCAS PREVIAS - CID/i.test(normalizarTexto(k))) {
+    if (/DOENCAS PREVIAS - CID/i.test(normalizarTexto(k))) {
       const cid = limparTexto(r[k]).toUpperCase();
       if (cid && cids.indexOf(cid) === -1) cids.push(cid);
     }
