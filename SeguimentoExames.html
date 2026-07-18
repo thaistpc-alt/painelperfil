@@ -1,0 +1,15 @@
+<div class="module" data-module="seguimento">
+  <section class="filter-card" id="seguimentoFiltros"></section>
+  <section class="kpi-grid" id="seguimentoCards"></section>
+  <section class="grid two">
+    <div class="panel"><h3>Status do seguimento</h3><p>Etapas registradas na aba EXAMES ACIDENTES.</p><div id="seguimentoStatus"></div></div>
+    <div class="panel"><h3>Tipo de seguimento</h3><p>Acidente de trabalho ou investigação de dose de radiação.</p><div id="seguimentoTipo"></div></div>
+  </section>
+  <section class="panel">
+    <div class="panel-head">
+      <div><h3>Tratativa dos exames</h3><p>Dados de acompanhamento e classificação do seguimento.</p></div>
+      <button class="btn-primary" onclick="exportarSeguimentoCsv()">Exportar CSV</button>
+    </div>
+    <div id="seguimentoTabela"></div>
+  </section>
+</div>

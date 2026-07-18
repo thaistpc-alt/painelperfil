@@ -50,13 +50,16 @@ function prepararAcidentes_() {
 
 function carregarTratativasAcidentes() {
   return medirPerformance("carregarTratativasAcidentes", () => {
+    garantirColunasTratativasAcidentes();
     const acidentes = prepararAcidentes_().registros;
-    const mapaAcidentes = {};
-    acidentes.forEach(a => { if (a.id) mapaAcidentes[a.id] = a; });
+    const perfil = mapaPerfil_();
+    const mapaAcidentes = montarMapaAcidentesParaSeguimento_(acidentes);
     const base = lerBase("examesAcidentes");
     const registros = base.registros.map(r => {
       const data = r["DATA DO ACIDENTE"] || r.acidenteData;
       const key = keyPessoa(r.mat, r.nome);
+      const acidente = mapaAcidentes[key + "|" + formatarData(data)] || mapaAcidentes[key] || {};
+      const pessoa = perfil[key] || {};
       const id = [limparTexto(r["COL_1"]) || "", key, formatarData(data)].join("|");
       return {
         id,
@@ -64,7 +67,12 @@ function carregarTratativasAcidentes() {
         key,
         mat: r.mat,
         nome: r.nome,
+        setor: acidente.setor || pessoa.setor || "Não informado",
+        funcao: acidente.funcao || pessoa.funcao || "Não informado",
+        sexo: pessoa.sexo || "Não informado",
+        tipoSeguimento: limparTexto(r["TIPO DE SEGUIMENTO"]) || "Seguimento de acidente de trabalho",
         status: r.tratamentoStatus || r["STATUS"] || "PENDENTE",
+        statusEtapa: r.tratamentoStatus || r["STATUS"] || "PENDENTE",
         dataAcidente: formatarData(data),
         pepRealizada: r.tratamentoPepRealizada || r["PEP REALIZADA?"] || "",
         primeiroSeguimento: etapaSeguimento_(r, "1º SEGUIMENTO (30 dias)", "DATA DE REALIZAÇÃO 1º SEGUIMENTO ", "REALIZADO?", "STATUS DAS SOROLOGIAS"),
@@ -76,10 +84,22 @@ function carregarTratativasAcidentes() {
     return {
       updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
       registros,
+      opcoes: opcoesComuns_(registros),
       origem: { aba: CONFIG.sheets.examesAcidentes.name, headerRow: CONFIG.sheets.examesAcidentes.headerRow, headers: base.headers, linhasLidas: base.linhasLidas || 0 },
       colunasSugeridas: CONFIG.treatmentWriteColumns
     };
   });
+}
+
+function montarMapaAcidentesParaSeguimento_(acidentes) {
+  const mapa = {};
+  acidentes.forEach(a => {
+    if (a.key) {
+      if (!mapa[a.key]) mapa[a.key] = a;
+      if (a.data) mapa[a.key + "|" + a.data] = a;
+    }
+  });
+  return mapa;
 }
 
 function etapaSeguimento_(r, prevista, realizada, feito, resultado, deslocamento) {

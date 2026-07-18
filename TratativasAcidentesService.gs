@@ -14,6 +14,7 @@ function salvarTratativaAcidente(payload) {
       pepRealizada: "PEP REALIZADA?",
       status: "STATUS",
       observacoes: "OBS",
+      tipoSeguimento: "TIPO DE SEGUIMENTO",
       responsavel: "RESPONSÁVEL PELA TRATATIVA",
       atualizadoEm: "DATA DA ÚLTIMA ATUALIZAÇÃO"
     };
@@ -29,6 +30,7 @@ function salvarTratativaAcidente(payload) {
       pepRealizada: limparTexto(entrada.pepRealizada),
       status: limparTexto(entrada.status),
       observacoes: limparTexto(entrada.observacoes),
+      tipoSeguimento: limparTexto(entrada.tipoSeguimento) || "Seguimento de acidente de trabalho",
       responsavel: Session.getActiveUser().getEmail() || "Usuário não identificado",
       atualizadoEm: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss")
     };
@@ -39,6 +41,34 @@ function salvarTratativaAcidente(payload) {
     return { sucesso: true, rowNumber: row, dados: updates };
   } catch (e) {
     return { sucesso: false, erro: e.message || String(e) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function garantirColunasTratativasAcidentes() {
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(20000)) return { sucesso: false, erro: "Não foi possível bloquear a planilha para criar colunas." };
+  try {
+    const cfg = CONFIG.sheets.examesAcidentes;
+    const sheet = getSpreadsheet().getSheetByName(cfg.name);
+    if (!sheet) return { sucesso: false, erro: "Aba EXAMES ACIDENTES não encontrada." };
+    const headers = sheet.getRange(cfg.headerRow, 1, 1, sheet.getLastColumn()).getDisplayValues()[0].map(h => limparTexto(h));
+    const headerMap = montarMapaCabecalho(headers);
+    const tipoNome = "TIPO DE SEGUIMENTO";
+    if (headerMap[normalizarTexto(tipoNome)] !== undefined) return { sucesso: true, criada: false };
+
+    const obsIdx = headerMap[normalizarTexto("OBS")];
+    const insertAfter = obsIdx !== undefined ? obsIdx + 1 : sheet.getLastColumn();
+    sheet.insertColumnAfter(insertAfter);
+    const col = insertAfter + 1;
+    sheet.getRange(cfg.headerRow, col).setValue(tipoNome);
+    const dataRows = Math.max(sheet.getLastRow() - cfg.headerRow, 0);
+    if (dataRows) {
+      const defaults = Array.from({ length: dataRows }, () => ["Seguimento de acidente de trabalho"]);
+      sheet.getRange(cfg.headerRow + 1, col, dataRows, 1).setValues(defaults);
+    }
+    return { sucesso: true, criada: true, coluna: tipoNome, posicao: col };
   } finally {
     lock.releaseLock();
   }

@@ -17,6 +17,7 @@ var CONFIG = {
     afastamentos: "Afastamentos",
     vacinas: "Vacinas",
     exames: "Exames",
+    seguimento: "SeguimentoExames",
     acidentes: "AcidentesBiologicos"
   },
   includes: {
@@ -88,6 +89,7 @@ var CONFIG = {
     { name: "PEP REALIZADA?", purpose: "Registrar se a PEP foi iniciada/realizada", defaultValue: "", suggestedAfter: "DATA DO ACIDENTE" },
     { name: "STATUS", purpose: "Situação atual do seguimento", defaultValue: "PENDENTE", suggestedAfter: "STATUS DAS SOROLOGIAS" },
     { name: "OBS", purpose: "Observações da tratativa", defaultValue: "", suggestedAfter: "STATUS" },
+    { name: "TIPO DE SEGUIMENTO", purpose: "Classificar a tratativa como seguimento de acidente de trabalho ou investigação de dose de radiação", defaultValue: "Seguimento de acidente de trabalho", suggestedAfter: "OBS" },
     { name: "RESPONSÁVEL PELA TRATATIVA", purpose: "Usuário que atualizou a tratativa", defaultValue: "", suggestedAfter: "OBS" },
     { name: "DATA DA ÚLTIMA ATUALIZAÇÃO", purpose: "Data e hora da última gravação no painel", defaultValue: "", suggestedAfter: "RESPONSÁVEL PELA TRATATIVA" }
   ]

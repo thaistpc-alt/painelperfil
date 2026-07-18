@@ -12,7 +12,8 @@ const APP = {
     afastamentos: ["Afastamentos", "Indicadores de afastamentos dos colaboradores"],
     vacinas: ["Vacinas", "Cobertura vacinal e acompanhamento de pendências"],
     exames: ["Exames Complementares", "Acompanhamento de exames ocupacionais"],
-    acidentes: ["Acidentes Mat. Biológico", "Acidentes e tratativas de seguimento"]
+    seguimento: ["Seguimento de exames", "Tratativa dos exames de seguimento"],
+    acidentes: ["Acidentes Mat. Biológico", "Indicadores dos acidentes com material biológico"]
   }
 };
 
@@ -84,6 +85,7 @@ function carregarDadosModulo(page, force) {
     afastamentos: "carregarAfastamentos",
     vacinas: "carregarVacinas",
     exames: "carregarExames",
+    seguimento: "carregarTratativasAcidentes",
     acidentes: "carregarAcidentes"
   };
   const fn = calls[page];
@@ -93,21 +95,11 @@ function carregarDadosModulo(page, force) {
     APP.dataCache[page] = ret || {};
     esconderLoading();
     renderizarModulo(page);
-    if (page === "acidentes") carregarTratativas();
   }).withFailureHandler(erroPortal)[fn]();
-}
-
-function carregarTratativas() {
-  if (APP.dataCache.tratativas) { renderizarModulo("acidentes"); return; }
-  google.script.run.withSuccessHandler(ret => {
-    APP.dataCache.tratativas = ret || {};
-    if (APP.page === "acidentes") renderizarModulo("acidentes");
-  }).withFailureHandler(() => {}).carregarTratativasAcidentes();
 }
 
 function recarregarPaginaAtual() {
   delete APP.dataCache[APP.page];
-  if (APP.page === "acidentes") delete APP.dataCache.tratativas;
   carregarDadosModulo(APP.page, true);
 }
 
@@ -118,6 +110,7 @@ function renderizarModulo(page) {
   if (page === "afastamentos") renderAfastamentos();
   if (page === "vacinas") renderVacinas();
   if (page === "exames") renderExames();
+  if (page === "seguimento") renderSeguimento();
   if (page === "acidentes") renderAcidentes();
 }
 
@@ -376,7 +369,6 @@ function renderExames() {
 
 function renderAcidentes() {
   const data = APP.dataCache.acidentes || {};
-  const trat = (APP.dataCache.tratativas || {}).registros || [];
   if (!document.getElementById("acidentesFiltros")) return;
   if (!document.getElementById("acidentes_setor_btn")) renderFiltros("acidentes", data, { anos: data.anos || [] });
   const rows = filtroComum("acidentes", data.registros || []);
@@ -386,14 +378,40 @@ function renderAcidentes() {
     kpi("AB", "Total de acidentes", rows.length, "Eventos"),
     kpi("👥", "Colaboradores acidentados", keys.length, "Distintos"),
     kpi("↻", "Reincidentes", repetidos, "Mais de um evento"),
-    kpi("PEP", "PEP iniciada", trat.filter(t => norm(t.pepRealizada).indexOf("SIM") !== -1).length, "EXAMES ACIDENTES"),
-    kpi("!", "Seguimentos pendentes", trat.filter(t => norm(t.status).indexOf("PEND") !== -1).length, "Tratativas")
+    kpi("BIO", "Biológicos", rows.filter(r => norm(r.tipo).indexOf("BIO") !== -1).length, "Tipo de acidente"),
+    kpi("PF", "Com paciente-fonte", rows.filter(r => norm(r.pacienteFonte).indexOf("NAO") === -1 && norm(r.pacienteFonte) !== "NAO INFORMADO").length, "Quando informado")
   ].join(""));
   renderBars("acidentesMes", meses(rows), 12);
   renderBars("acidentesTipo", group(rows, "tipo"), 12);
   renderBars("acidentesSetor", group(rows, "setor"), 12);
-  renderBars("acidentesTratativas", group(trat.map(t => ({ status: t.status || "PENDENTE" })), "status"), 8);
+  renderBars("acidentesTratativas", group(rows, "conclusao"), 8);
   renderTable("acidentesTabela", "acidentes", rows, [["id", "ID"], ["mat", "Matrícula"], ["nome", "Nome"], ["status", "Status"], ["data", "Data"], ["tipo", "Tipo"], ["setor", "Setor"], ["funcao", "Função"], ["agente", "Agente"], ["parteCorpo", "Parte do corpo"]]);
+}
+
+function renderSeguimento() {
+  const data = APP.dataCache.seguimento || {};
+  if (!document.getElementById("seguimentoFiltros")) return;
+  const situacoes = Array.from(new Set((data.registros || []).map(r => r.statusEtapa || r.status).filter(Boolean))).sort();
+  if (!document.getElementById("seguimento_setor_btn")) renderFiltros("seguimento", data, { situacoes });
+  const rows = filtroComum("seguimento", data.registros || []);
+  setHtml("seguimentoCards", [
+    kpi("SG", "Seguimentos", rows.length, "Registros filtrados"),
+    kpi("PEP", "PEP realizada", rows.filter(r => norm(r.pepRealizada).indexOf("SIM") !== -1).length, "Quando informado"),
+    kpi("!", "Pendentes", rows.filter(r => norm(r.status).indexOf("PEND") !== -1).length, "Status atual"),
+    kpi("OK", "Finalizados", rows.filter(r => norm(r.status).indexOf("FINAL") !== -1 || norm(r.status).indexOf("ENCERR") !== -1).length, "Status atual")
+  ].join(""));
+  renderBars("seguimentoStatus", group(rows, "status"), 10);
+  renderBars("seguimentoTipo", group(rows, "tipoSeguimento"), 10);
+  renderTable("seguimentoTabela", "seguimento", rows, [
+    ["mat", "Matrícula"], ["nome", "Nome"], ["tipoSeguimento", "Tipo de seguimento"], ["setor", "Setor"], ["funcao", "Função"], ["dataAcidente", "Data"], ["pepRealizada", "PEP"], ["status", "Status"], ["observacoes", "Observações"]
+  ]);
+}
+
+function exportarSeguimentoCsv() {
+  const rows = filtroComum("seguimento", (APP.dataCache.seguimento || {}).registros || []);
+  const header = ["Matrícula","Nome","Tipo de seguimento","Setor","Função","Data do acidente","PEP realizada","Status","Observações"];
+  const linhas = rows.map(r => [r.mat,r.nome,r.tipoSeguimento,r.setor,r.funcao,r.dataAcidente,r.pepRealizada,r.status,r.observacoes]);
+  baixarCsv("seguimento_exames.csv", [header].concat(linhas));
 }
 
 function renderTable(target, module, rows, cols) {
