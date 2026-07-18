@@ -390,7 +390,7 @@ function renderPerfilSaude() {
     kpi("HB", "Hepatite B atualizada", pct(rows.filter(r => vacinaAtualizadaPerfil(r, "hepB")).length, rows.length), "Por situacao Hep B"),
     kpi("CV", "Covid", pct(rows.filter(r => vacinaAtualizadaPerfil(r, "covid")).length, rows.length), "Por situacao COVID")
   ].join(""));
-  renderBars("perfilVacinasAno", vacinasAplicadasPorAno(rows, ano), 3);
+  renderBars("perfilVacinasAno", vacinasAplicadasPorAno(rows, ano), 2);
   renderBars("perfilVacinasPendencias", grupoPendenciasVacPerfil(rows), 8);
   renderBars("perfilVacinasSetor", grupoPendenciasVacSetorTipo(rows), 15);
 
@@ -402,8 +402,8 @@ function renderPerfilSaude() {
   renderBars("perfilFamilias", grupoCids(rows, "familiasCid"), 12);
   renderBars("perfilTopCids", grupoCids(rows, "cids"), 10);
   renderBars("perfilPatologiasSetor", group(rows.filter(r => (r.cids || []).length), "setor"), 15);
-  renderBars("perfilPatAfFamilia", cruzarPatologiasAfastamentosFamilia(rows, eventosAfast), 12);
-  renderBars("perfilPatAfCids", cruzarPatologiasAfastamentosCid(rows, eventosAfast), 10);
+  renderComboChart("perfilPatAfFamilia", cruzarPatologiasAfastamentosFamilia(rows, eventosAfast), 12);
+  renderComboChart("perfilPatAfCids", cruzarPatologiasAfastamentosCid(rows, eventosAfast), 10);
 }
 
 function filtroPerfilColaboradores(rows, ignorarStatus) {
@@ -436,10 +436,11 @@ function vacinaAtualizadaPerfil(row, id) {
 
 function vacinasAplicadasPorAno(rows, anoFiltro) {
   const ano = String(anoFiltro || new Date().getFullYear());
-  const ordem = ["dT", "Hepatite B", "COVID"];
-  const o = { "dT": 0, "Hepatite B": 0, "COVID": 0 };
+  const ordem = ["dT", "Hepatite B"];
+  const o = { "dT": 0, "Hepatite B": 0 };
   (rows || []).forEach(r => (r.vacinaEventos || []).forEach(e => {
     if (String(e.ano || "") !== ano) return;
+    if (ordem.indexOf(e.tipo) === -1) return;
     if (o[e.tipo] === undefined) o[e.tipo] = 0;
     o[e.tipo] += 1;
   }));
@@ -470,32 +471,30 @@ function grupoPendenciasVacSetorTipo(rows) {
 }
 
 function cruzarPatologiasAfastamentosFamilia(rows, eventos) {
-  const familiasPat = grupoCids(rows, "familiasCid").map(r => r.nome.split(" - ")[0]);
+  const familiasPat = grupoCids(rows, "familiasCid").map(r => ({
+    familia: r.nome.split(" - ")[0],
+    patologias: r.quantidade
+  }));
   const afastPorFamilia = countBy(eventos.filter(e => e.familiaCid), "familiaCid");
-  return familiasPat.map(f => ({
-    nome: f + " - " + descricaoCid(f),
-    quantidade: afastPorFamilia[f] || 0,
-    detalhe: "Patologias: " + contarPessoasComFamilia(rows, f) + " | Afastamentos: " + (afastPorFamilia[f] || 0)
-  })).sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome));
+  return familiasPat.map(item => ({
+    nome: item.familia + " - " + descricaoCid(item.familia),
+    patologias: item.patologias,
+    afastamentos: afastPorFamilia[item.familia] || 0,
+    detalhe: "Patologias: " + item.patologias + " | Afastamentos: " + (afastPorFamilia[item.familia] || 0)
+  }));
 }
 
 function cruzarPatologiasAfastamentosCid(rows, eventos) {
-  const top = grupoCids(rows, "cids").slice(0, 10).map(r => r.nome);
+  const top = grupoCids(rows, "cids").slice(0, 10);
   const afastPorCid = countBy(eventos.filter(e => e.cid), "cid");
-  return top.map(cid => ({
-    nome: cid,
-    quantidade: afastPorCid[cid] || 0,
-    detalhe: "Patologias: " + contarPessoasComCid(rows, cid) + " | Afastamentos: " + (afastPorCid[cid] || 0)
-  })).sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR", { numeric: true }));
+  return top.map(item => ({
+    nome: item.nome,
+    patologias: item.quantidade,
+    afastamentos: afastPorCid[item.nome] || 0,
+    detalhe: "Patologias: " + item.quantidade + " | Afastamentos: " + (afastPorCid[item.nome] || 0)
+  }));
 }
 
-function contarPessoasComFamilia(rows, familia) {
-  return (rows || []).filter(r => (r.familiasCid || []).indexOf(familia) !== -1).length;
-}
-
-function contarPessoasComCid(rows, cid) {
-  return (rows || []).filter(r => (r.cids || []).indexOf(cid) !== -1).length;
-}
 function renderPatologias() {
   const data = APP.dataCache.patologias || {};
   if (!document.getElementById("patologiasFiltros")) return;
@@ -710,6 +709,33 @@ function renderBars(id, rows, limit) {
     const title = escAttr(r.detalhe ? r.nome + " | " + r.detalhe : r.nome);
     return '<div class="bar-row" title="' + title + '"><div class="bar-label" title="' + title + '">' + esc(r.nome) + '</div><div class="bar-track"><div class="bar-fill" style="width:' + w + '%"></div></div><div class="bar-value">' + fmt(r.quantidade) + '</div></div>';
   }).join("") + '</div>');
+}
+
+function renderComboChart(id, rows, limit) {
+  const list = (rows || []).slice(0, limit || 12);
+  if (!list.length) { setHtml(id, '<div class="empty">Sem dados</div>'); return; }
+  const max = Math.max.apply(null, list.map(r => Math.max(Number(r.patologias || 0), Number(r.afastamentos || 0)))) || 1;
+  const points = list.map((r, i) => {
+    const x = ((i + 0.5) / list.length) * 100;
+    const y = Math.max(0, Math.min(100, 100 - ((Number(r.afastamentos || 0) / max) * 100)));
+    return x.toFixed(2) + "," + y.toFixed(2);
+  }).join(" ");
+  const lineSvg = '<svg class="combo-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + points + '" fill="none" stroke="#2d64ad" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
+  const chart = list.map(r => {
+    const pat = Number(r.patologias || 0);
+    const af = Number(r.afastamentos || 0);
+    const barH = Math.max((pat / max) * 100, pat ? 2 : 0);
+    const dotY = Math.max(0, Math.min(100, 100 - ((af / max) * 100)));
+    const title = escAttr((r.detalhe || ("Patologias: " + pat + " | Afastamentos: " + af)));
+    return '<div class="combo-item" title="' + title + '">' +
+      '<div class="combo-plot">' +
+        '<div class="combo-bar" style="height:' + barH + '%"></div>' +
+        '<div class="combo-dot" style="top:' + dotY + '%"></div>' +
+      '</div>' +
+      '<div class="combo-label" title="' + escAttr(r.nome) + '">' + esc(r.nome) + '</div>' +
+    '</div>';
+  }).join("");
+  setHtml(id, '<div class="combo-legend"><span><i class="bar"></i>Patologias</span><span><i class="line"></i>Afastamentos</span></div><div class="combo-chart" style="--cols:' + list.length + '">' + lineSvg + chart + '</div>');
 }
 
 function group(rows, key) {
