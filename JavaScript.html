@@ -773,6 +773,7 @@ function renderComboChart(id, rows, limit) {
   const list = (rows || []).slice(0, limit || 12);
   if (!list.length) { setHtml(id, '<div class="empty">Sem dados</div>'); return; }
   const max = Math.max.apply(null, list.map(r => Math.max(Number(r.patologias || 0), Number(r.afastamentos || 0)))) || 1;
+  const maxLabel = fmt(max);
   const points = list.map((r, i) => {
     const x = ((i + 0.5) / list.length) * 100;
     const y = Math.max(0, Math.min(100, 100 - ((Number(r.afastamentos || 0) / max) * 100)));
@@ -787,13 +788,15 @@ function renderComboChart(id, rows, limit) {
     const title = escAttr((r.detalhe || ("Patologias: " + pat + " | Afastamentos: " + af)));
     return '<div class="combo-item" title="' + title + '">' +
       '<div class="combo-plot">' +
+        '<div class="combo-bar-value" style="bottom:calc(' + barH + '% + 8px)">' + fmt(pat) + '</div>' +
         '<div class="combo-bar" style="height:' + barH + '%"></div>' +
         '<div class="combo-dot" style="top:' + dotY + '%"></div>' +
+        '<div class="combo-dot-value" style="top:' + dotY + '%">' + fmt(af) + '</div>' +
       '</div>' +
       '<div class="combo-label" title="' + escAttr(r.nome) + '">' + esc(r.nome) + '</div>' +
     '</div>';
   }).join("");
-  setHtml(id, '<div class="combo-legend"><span><i class="bar"></i>Patologias</span><span><i class="line"></i>Afastamentos</span></div><div class="combo-chart" style="--cols:' + list.length + '">' + lineSvg + chart + '</div>');
+  setHtml(id, '<div class="combo-head"><div class="combo-legend"><span><i class="bar"></i>Patologias</span><span><i class="line"></i>Afastamentos</span></div><span class="combo-scale">Escala m&aacute;xima: ' + esc(maxLabel) + '</span></div><div class="combo-chart" style="--cols:' + list.length + '">' + lineSvg + chart + '</div>');
 }
 
 function group(rows, key) {
