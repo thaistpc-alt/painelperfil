@@ -166,6 +166,7 @@ function testarCarregamentoModulosPainel() {
       saida[nome] = { sucesso: false, erro: e && e.stack ? e.stack : String(e), tempoMs: Date.now() - inicio };
     }
   });
+  Logger.log(JSON.stringify(saida, null, 2));
   return saida;
 }
 
