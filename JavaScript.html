@@ -566,7 +566,14 @@ function setHtml(id, html) { const el = document.getElementById(id); if (el) el.
 function getValue(id) { const el = document.getElementById(id); return el ? el.value : ""; }
 function mostrarLoading(txt) { setText("loadingText", txt || "Carregando..."); document.getElementById("loading").classList.remove("hidden"); document.getElementById("conteudo").classList.add("hidden"); }
 function esconderLoading() { document.getElementById("loading").classList.add("hidden"); document.getElementById("conteudo").classList.remove("hidden"); }
-function erroPortal(erro) { esconderLoading(); setHtml("conteudo", '<div class="empty"><b>Erro ao carregar</b><br>' + esc(erro && erro.message ? erro.message : erro) + '</div>'); }
+function erroPortal(erro) {
+  esconderLoading();
+  const msg = erro && erro.message ? erro.message : String(erro || "Erro desconhecido");
+  const detalhe = norm(msg).indexOf("AUTH") !== -1 || norm(msg).indexOf("PERMISSION") !== -1 || norm(msg).indexOf("AUTORIZ") !== -1
+    ? "Autorize o web app no Google ou ajuste a implantação para executar como o proprietário."
+    : "Abra o Registro de execução no Apps Script para ver a falha exata do backend.";
+  setHtml("conteudo", '<div class="empty"><b>Erro ao carregar dados</b><br>' + esc(msg) + '<br><span>' + esc(detalhe) + '</span></div>');
+}
 function descricaoCid(f) {
   const map = { A:"Infecciosas", B:"Infecciosas", C:"Neoplasias", D:"Sangue/imunidade", E:"Endócrinas", F:"Mentais", G:"Sistema nervoso", H:"Olhos/ouvidos", I:"Circulatório", J:"Respiratório", K:"Digestivo", L:"Pele", M:"Osteomuscular", N:"Geniturinário", O:"Gestação", P:"Perinatal", Q:"Congênitas", R:"Sintomas", S:"Lesões", T:"Lesões", U:"Especiais", V:"Externas", W:"Externas", X:"Externas", Y:"Externas", Z:"Fatores de saúde" };
   return map[f] || "Não informado";

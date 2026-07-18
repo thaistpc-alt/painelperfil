@@ -19,21 +19,14 @@ function carregarView(nomeView) {
 
 function carregarConfiguracoes() {
   return medirPerformance("carregarConfiguracoes", () => {
-    const bases = Object.keys(CONFIG.sheets).map(key => {
-      const info = lerBase(key, { somenteCabecalho: true });
-      return {
-        key,
-        nome: CONFIG.sheets[key].name,
-        headerRow: CONFIG.sheets[key].headerRow,
-        encontrada: info.encontrada,
-        headers: info.headers
-      };
-    });
-    const perfil = carregarRegistrosPerfil_();
     return {
       pageSize: CONFIG.pageSize,
-      bases,
-      statusOptions: montarOpcoesStatus_(perfil.map(r => r.status)),
+      bases: Object.keys(CONFIG.sheets).map(key => ({
+        key,
+        nome: CONFIG.sheets[key].name,
+        headerRow: CONFIG.sheets[key].headerRow
+      })),
+      statusOptions: montarOpcoesStatus_(["Ativo", "Ativo - Reabilitado", "Gestante", "Desligado", "Óbito", "Transferido", "Suspenso", "Aposentado", "Afastado pelo INSS", "Licença-maternidade", "Não informado"]),
       updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm")
     };
   });
