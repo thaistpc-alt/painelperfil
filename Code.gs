@@ -6,7 +6,7 @@
 
 const CONFIG = {
   spreadsheetId: "1ap49yRtC1HfT89yYFMmHPXZlvUyLGqeEGx9LuwoD-rY",
-  cachePrefix: "PAINEL_PERFIL_SAUDE_V64_",
+  cachePrefix: "PAINEL_PERFIL_SAUDE_V65_",
   cacheTime: 600,
   sheets: {
     perfil: "BD PERFIL",
@@ -269,29 +269,6 @@ function transformarGrupoEmArray(objeto) {
   return Object.keys(objeto)
     .map(chave => ({ nome: chave, quantidade: objeto[chave] }))
     .sort((a, b) => b.quantidade - a.quantidade);
-}
-
-function considerarColaboradorMacro(status) {
-  const s = normalizarTexto(status);
-  return s !== "" && s !== "DESLIGADO" && s !== "TRANSFERIDO" && s !== "OBITO" && s !== "OBITO." && s !== "FALECIDO";
-}
-
-function considerarNaAnalisePatologia(status) {
-  const s = normalizarTexto(status);
-  return s === "ATIVO" ||
-    s === "ATIVO - REABILITADO" ||
-    s === "ATIVO REABILITADO" ||
-    s.indexOf("REABILIT") !== -1 ||
-    s === "LICENCA MATERNIDADE" ||
-    s === "LICENÇA MATERNIDADE" ||
-    s === "AFASTADO (INSS)" ||
-    s === "AFASTADO INSS" ||
-    (s.indexOf("AFASTADO") !== -1 && s.indexOf("INSS") !== -1) ||
-    s === "GESTANTE";
-}
-
-function considerarNaAnaliseVacinas(status) {
-  return considerarNaAnalisePatologia(status);
 }
 
 function isAtivoOuReabilitado(status) {
@@ -589,6 +566,10 @@ function extrairVacinas() {
     const dtSituacao = limparTexto(valorLinha(linha, IDX_DT_ESQUEMA));
     const hepSituacao = limparTexto(valorLinha(linha, IDX_HEP_ESQUEMA));
     const covidSituacao = limparTexto(valorLinha(linha, IDX_COVID_ESQUEMA));
+    const geralCompleto = classificarEsquemaVacinalGeral(situacaoVacinal);
+    const dtCompleta = classificarVacinaCompleta(dtSituacao, false);
+    const hepCompleta = classificarVacinaCompleta(hepSituacao, false);
+    const covidCompleta = classificarCovidCompleta(covidSituacao, false);
 
     const dtDatas = [IDX_DT_1, IDX_DT_2, IDX_DT_3, IDX_DT_REFORCO]
       .map(idx => valorLinha(linha, idx))
@@ -607,10 +588,10 @@ function extrairVacinas() {
       sexo: "",
       idade: "",
       situacaoVacinal,
-      esquemaCompleto: classificarEsquemaVacinalGeral(situacaoVacinal) ? "Completo" : "Incompleto",
-      dtCompleta: classificarVacinaCompleta(dtSituacao, false) ? "Completa" : "Incompleta",
-      hepCompleta: classificarVacinaCompleta(hepSituacao, false) ? "Completa" : "Incompleta",
-      covidCompleta: classificarCovidCompleta(covidSituacao, false) ? "Completa" : "Incompleta",
+      esquemaCompleto: geralCompleto && dtCompleta && hepCompleta && covidCompleta ? "Completo" : "Incompleto",
+      dtCompleta: dtCompleta ? "Completa" : "Incompleta",
+      hepCompleta: hepCompleta ? "Completa" : "Incompleta",
+      covidCompleta: covidCompleta ? "Completa" : "Incompleta",
       dtProximoReforco: formatarDataIsoVacina(valorLinha(linha, IDX_DT_PROXIMO)),
       dtDatas: dtDatas.map(formatarDataIsoVacina),
       hepDatas: hepDatas.map(formatarDataIsoVacina)
@@ -674,9 +655,9 @@ function carregarPerfilSaude() {
   const vacinas = extrairVacinas();
 
   const ano = new Date().getFullYear();
-  const perfilConsiderado = perfil.filter(i => considerarColaboradorMacro(i.status));
-  const patologiasConsideradas = patologias.filter(i => considerarNaAnalisePatologia(i.status));
-  const vacinasAtivos = vacinas.filter(i => considerarNaAnaliseVacinas(i.status));
+  const perfilConsiderado = perfil.filter(i => i.nome || i.mat);
+  const patologiasConsideradas = patologias.filter(i => i.nome || i.mat);
+  const vacinasAtivos = vacinas.filter(i => i.nome || i.mat);
   const afastamentosAno = afastamentos.filter(i => Number(i.ano) === Number(ano));
 
   const totalColaboradores = perfilConsiderado.length;
@@ -807,7 +788,8 @@ function carregarPatologias() {
   const mapaPerfil = criarMapaPerfil(perfil);
 
   const todosConsiderados = complementarComPerfil(extrairPatologias(), mapaPerfil)
-    .filter(item => considerarNaAnalisePatologia(item.status));
+    .filter(item => item.nome || item.mat)
+    .map(normalizarRegistroPatologiaV41);
 
   const registrosComPatologia = todosConsiderados
     .filter(item => (item.cids || []).length > 0)
@@ -816,11 +798,13 @@ function carregarPatologias() {
   const setoresMap = {};
   const funcoesMap = {};
   const sexosMap = {};
+  const statusMap = {};
 
-  registrosComPatologia.forEach(item => {
+  todosConsiderados.forEach(item => {
     if (item.setor) setoresMap[item.setor] = true;
     if (item.funcao) funcoesMap[item.funcao] = true;
     if (item.sexo) sexosMap[item.sexo] = true;
+    if (item.status) statusMap[item.status] = true;
   });
 
   const retorno = {
@@ -829,8 +813,10 @@ function carregarPatologias() {
     filtros: {
       setores: ordenarLista(Object.keys(setoresMap)),
       funcoes: ordenarLista(Object.keys(funcoesMap)),
-      sexos: ordenarLista(Object.keys(sexosMap))
+      sexos: ordenarLista(Object.keys(sexosMap)),
+      status: ordenarLista(Object.keys(statusMap))
     },
+    analisados: todosConsiderados,
     registros: registrosComPatologia,
     resumoGeral: montarResumoPatologiasV41(registrosComPatologia, todosConsiderados.length)
   };
@@ -932,16 +918,17 @@ function carregarAfastamentos() {
   const funcoesMap = {};
   const sexosMap = {};
   const anosMap = {};
+  const statusMap = {};
 
   afastamentos.forEach(item => {
     if (item.setor) setoresMap[item.setor] = true;
     if (item.funcao) funcoesMap[item.funcao] = true;
     if (item.sexo) sexosMap[item.sexo] = true;
     if (item.ano) anosMap[item.ano] = true;
+    if (item.status) statusMap[item.status] = true;
   });
 
   const patologiasComparativo = complementarComPerfil(extrairPatologias(), mapaPerfil)
-    .filter(item => considerarNaAnalisePatologia(item.status))
     .filter(item => (item.cids || []).length > 0)
     .map(normalizarRegistroPatologiaV41);
 
@@ -952,6 +939,7 @@ function carregarAfastamentos() {
       setores: ordenarLista(Object.keys(setoresMap)),
       funcoes: ordenarLista(Object.keys(funcoesMap)),
       sexos: ordenarLista(Object.keys(sexosMap)),
+      status: ordenarLista(Object.keys(statusMap)),
       anos: Object.keys(anosMap).sort((a, b) => Number(b) - Number(a))
     },
     registros: afastamentos,
@@ -1209,7 +1197,7 @@ function diagnosticarVacinasIndicadores() {
   const perfil = extrairPerfil();
   const mapaPerfil = criarMapaPerfil(perfil);
   const registros = complementarComPerfil(extrairVacinas(), mapaPerfil)
-    .filter(item => considerarNaAnaliseVacinas(item.status))
+    .filter(item => item.nome || item.mat)
     .map(normalizarRegistroVacinaV55);
 
   const total = registros.length;
@@ -1224,7 +1212,9 @@ function diagnosticarVacinasIndicadores() {
 
   const pendenciasPorSetor = {};
   registros.forEach(item => {
-    if (item.esquemaCompleto !== "Completo") incrementarGrupo(pendenciasPorSetor, item.setor, 1);
+    if (item.esquemaCompleto !== "Completo" || item.dtCompleta !== "Completa" || item.hepCompleta !== "Completa" || item.covidCompleta !== "Completa") {
+      incrementarGrupo(pendenciasPorSetor, item.setor, 1);
+    }
   });
 
   const resultado = {
@@ -1233,7 +1223,7 @@ function diagnosticarVacinasIndicadores() {
       esquemaDT: "Coluna K",
       hepatiteB: "Coluna R",
       covid: "Coluna AA",
-      pendenciaOperacional: "Coluna D diferente de VACINAS ATUALIZADAS"
+      pendenciaOperacional: "Coluna D, K, R ou AA incompleta"
     },
     totalColaboradoresConsiderados: total,
     esquemaVacinalCompleto: completoGeral,

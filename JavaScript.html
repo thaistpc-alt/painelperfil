@@ -168,21 +168,12 @@ function addGrupoJS(obj,chave,qtd){ const k=chave||"Não informado"; obj[k]=(obj
 function toArrayJS(obj){ return Object.keys(obj).map(k=>({nome:k,quantidade:obj[k]})).sort((a,b)=>b.quantidade-a.quantidade); }
 function familiaCidJS(cid){ const m=String(cid||"").toUpperCase().match(/[A-Z]/); return m?m[0]:""; }
 function classSexo(s){ const v=normalizarTextoJS(s); if(v==="F"||v==="FEMININO"||v==="FEMININA")return"Feminino"; if(v==="M"||v==="MASCULINO"||v==="MASCULINA")return"Masculino"; return s || "Não informado"; }
-function statusExcluidoPadrao(status) {
-  const s = normalizarTextoJS(status);
-  return s.indexOf("DESLIG") !== -1 ||
-    s.indexOf("APOSENT") !== -1 ||
-    s.indexOf("OBITO") !== -1 ||
-    s.indexOf("FALECID") !== -1 ||
-    (s.indexOf("AFASTADO") !== -1 && s.indexOf("INSS") !== -1);
-}
 function montarFiltroStatus(prefixo, lista, callbackNome) {
   const alvo = document.getElementById(prefixo + "OpcoesStatus");
   if (!alvo) return;
   alvo.innerHTML = (lista || []).map(status => {
-    const checked = statusExcluidoPadrao(status) ? "" : " checked";
     return '<label class="check-row" data-text="' + escAttr(normalizarTextoJS(status)) + '">' +
-      '<input type="checkbox" value="' + escAttr(status) + '"' + checked + ' onchange="' + callbackNome + '()">' +
+      '<input type="checkbox" value="' + escAttr(status) + '" checked onchange="' + callbackNome + '()">' +
       '<span>' + esc(status) + '</span>' +
     '</label>';
   }).join("");
@@ -197,7 +188,7 @@ function resetarFiltroStatus(prefixo) {
   const alvo = document.getElementById(prefixo + "OpcoesStatus");
   if (!alvo) return;
   alvo.querySelectorAll("input[type='checkbox']").forEach(input => {
-    input.checked = !statusExcluidoPadrao(input.value);
+    input.checked = true;
   });
   atualizarBotaoStatus(prefixo);
 }
@@ -207,8 +198,8 @@ function atualizarBotaoStatus(prefixo) {
   if (!alvo || !btn) return;
   const inputs = Array.from(alvo.querySelectorAll("input[type='checkbox']"));
   const selecionados = inputs.filter(input => input.checked);
-  const padrao = inputs.length && inputs.every(input => input.checked !== statusExcluidoPadrao(input.value));
-  if (padrao) btn.textContent = "Status padrão";
+  const todos = inputs.length && selecionados.length === inputs.length;
+  if (todos) btn.textContent = "Todos os status";
   else if (!selecionados.length) btn.textContent = "Nenhum status";
   else if (selecionados.length === 1) btn.textContent = selecionados[0].value;
   else btn.textContent = selecionados.length + " selecionados";
@@ -288,7 +279,7 @@ function renderizarPerfil() {
 }
 
 /* PATOLOGIAS - MÓDULO ÚNICO V4.1 */
-let PAT41_DADOS = { registros: [], totalAnalisados: 0, filtros: { setores: [], funcoes: [], sexos: [] } };
+let PAT41_DADOS = { registros: [], analisados: [], totalAnalisados: 0, filtros: { setores: [], funcoes: [], sexos: [], status: [] } };
 let PAT41_FILTRADOS = [];
 let PAT41_TABELA_BASE = [];
 
@@ -312,26 +303,38 @@ function prepararPatologias() {
   const d = PAT41_DADOS || {};
   document.getElementById("atualizadoEm").textContent = "Atualizado em " + (d.atualizadoEm || "");
   const registrosComCid = (d.registros || []).filter(item => item.cids && item.cids.length > 0);
+  const analisados = (d.analisados && d.analisados.length ? d.analisados : d.registros || []).filter(item => item.nome || item.mat);
   PAT41_DADOS.registros = registrosComCid;
-  montarOpcoesPat41("setor", Array.from(new Set(registrosComCid.map(i => i.setor).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")));
-  montarOpcoesPat41("funcao", Array.from(new Set(registrosComCid.map(i => i.funcao).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")));
-  preencherSelect("pat41FiltroSexo", Array.from(new Set(registrosComCid.map(i => i.sexo).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")), "Todos");
+  PAT41_DADOS.analisados = analisados;
+  montarOpcoesPat41("setor", (d.filtros || {}).setores || Array.from(new Set(analisados.map(i => i.setor).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")));
+  montarOpcoesPat41("funcao", (d.filtros || {}).funcoes || Array.from(new Set(analisados.map(i => i.funcao).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")));
+  montarFiltroStatus("pat41", (d.filtros || {}).status || Array.from(new Set(analisados.map(i => i.status).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")), "aplicarFiltrosPat41");
+  preencherSelect("pat41FiltroSexo", (d.filtros || {}).sexos || Array.from(new Set(analisados.map(i => i.sexo).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")), "Todos");
   aplicarFiltrosPat41();
 }
 function montarOpcoesPat41(tipo, lista) { montarOpcoesMultiGenerico(tipo, lista, "pat41"); }
-function toggleMultiPat41(tipo) { toggleMultiGenerico(tipo, "pat41"); }
-function selecionarTodosPat41(tipo, marcar) { selecionarTodosGenerico(tipo, marcar, "pat41", aplicarFiltrosPat41); }
-function filtrarOpcoesPat41(tipo) { filtrarOpcoesGenerico(tipo, "pat41"); }
+function toggleMultiPat41(tipo) { if(tipo==="status"){toggleFiltroStatus("pat41"); return;} toggleMultiGenerico(tipo, "pat41"); }
+function selecionarTodosPat41(tipo, marcar) { if(tipo==="status"){selecionarTodosStatus("pat41", marcar, aplicarFiltrosPat41); return;} selecionarTodosGenerico(tipo, marcar, "pat41", aplicarFiltrosPat41); }
+function filtrarOpcoesPat41(tipo) { if(tipo==="status"){filtrarFiltroStatus("pat41"); return;} filtrarOpcoesGenerico(tipo, "pat41"); }
 function selecionadosPat41(tipo) { return selecionadosGenerico(tipo, "pat41"); }
-function atualizarBotoesPat41() { atualizarBotoesGenerico("pat41", "Todos", "Todas"); }
-function limparFiltrosPat41() { limparFiltrosGenerico("pat41"); aplicarFiltrosPat41(); }
+function atualizarBotoesPat41() { atualizarBotoesGenerico("pat41", "Todos", "Todas"); atualizarBotaoStatus("pat41"); }
+function limparFiltrosPat41() { limparFiltrosGenerico("pat41"); setTextValue("pat41BuscaStatus", ""); resetarFiltroStatus("pat41"); aplicarFiltrosPat41(); }
 function aplicarFiltrosPat41() {
   const setores=selecionadosPat41("setor"), funcoes=selecionadosPat41("funcao"), sexo=document.getElementById("pat41FiltroSexo")?.value||"";
-  PAT41_FILTRADOS=(PAT41_DADOS.registros||[]).filter(item=>{ if(!item.cids||!item.cids.length)return false; if(setores.length&&setores.indexOf(item.setor)===-1)return false; if(funcoes.length&&funcoes.indexOf(item.funcao)===-1)return false; if(sexo&&item.sexo!==sexo)return false; return true; });
-  PAT41_TABELA_BASE=PAT41_FILTRADOS; patTabelaBase=PAT41_FILTRADOS; atualizarBotoesPat41(); renderizarResumoPat41(PAT41_FILTRADOS); renderizarTabelaPat41();
+  const status=statusSelecionados("pat41");
+  const filtro = item => {
+    if(setores.length&&setores.indexOf(item.setor)===-1)return false;
+    if(funcoes.length&&funcoes.indexOf(item.funcao)===-1)return false;
+    if(sexo&&item.sexo!==sexo)return false;
+    if(status.indexOf(item.status)===-1)return false;
+    return true;
+  };
+  const analisadosFiltrados=(PAT41_DADOS.analisados||[]).filter(filtro);
+  PAT41_FILTRADOS=(PAT41_DADOS.registros||[]).filter(item=>filtro(item)&&item.cids&&item.cids.length);
+  PAT41_TABELA_BASE=PAT41_FILTRADOS; patTabelaBase=PAT41_FILTRADOS; atualizarBotoesPat41(); renderizarResumoPat41(PAT41_FILTRADOS, analisadosFiltrados.length); renderizarTabelaPat41();
 }
-function renderizarResumoPat41(lista) {
-  const registros=lista||[]; const totalAnalisados=Number(PAT41_DADOS.totalAnalisados||0)||registros.length; const totalPatologias=registros.reduce((s,item)=>s+(item.cids||[]).length,0);
+function renderizarResumoPat41(lista, totalFiltrado) {
+  const registros=lista||[]; const totalAnalisados=Number(totalFiltrado||0)||registros.length; const totalPatologias=registros.reduce((s,item)=>s+(item.cids||[]).length,0);
   const familias={}, detalhesFamilia={}, cids={};
   registros.forEach(item=>(item.cids||[]).forEach(cid=>{const cidLimpo=String(cid||"").toUpperCase().replace(/\s+/g,"").trim(); if(!cidLimpo)return; cids[cidLimpo]=(cids[cidLimpo]||0)+1; const familia=familiaCidPat41(cidLimpo); if(!familia)return; familias[familia]=(familias[familia]||0)+1; if(!detalhesFamilia[familia])detalhesFamilia[familia]={}; detalhesFamilia[familia][cidLimpo]=(detalhesFamilia[familia][cidLimpo]||0)+1;}));
   const graficoFamilias=Object.keys(familias).map(familia=>{const detalhe=Object.keys(detalhesFamilia[familia]||{}).map(cid=>({nome:cid,quantidade:detalhesFamilia[familia][cid]})).sort((a,b)=>b.quantidade-a.quantidade); return {nome:familia,quantidade:familias[familia],descricao:descricaoFamiliaPat41(familia),cids:detalhe,tooltip:"Família "+familia+" - "+descricaoFamiliaPat41(familia)+"\nTotal: "+fmt(familias[familia])+"\n\n"+detalhe.map(i=>i.nome+": "+fmt(i.quantidade)).join("\n")};}).sort((a,b)=>b.quantidade-a.quantidade);
@@ -356,7 +359,7 @@ function renderizarTabelaPat41() {
 function limparPesquisaTabelaPat41(){setTextValue("pat41BuscaTabela",""); renderizarTabelaPat41();}
 
 /* AFASTAMENTOS */
-let AF50_DADOS={registros:[],filtros:{setores:[],funcoes:[],sexos:[],anos:[]},anoVigente:new Date().getFullYear()};
+let AF50_DADOS={registros:[],filtros:{setores:[],funcoes:[],sexos:[],status:[],anos:[]},anoVigente:new Date().getFullYear()};
 let AF50_FILTRADOS=[];
 
 function carregarDadosAfastamentos(forcarAtualizacao){
@@ -384,6 +387,7 @@ function prepararAfastamentos(){
   document.getElementById("atualizadoEm").textContent="Atualizado em "+(d.atualizadoEm||"");
   montarOpcoesAf("setor",(d.filtros||{}).setores||[]);
   montarOpcoesAf("funcao",(d.filtros||{}).funcoes||[]);
+  montarFiltroStatus("af",(d.filtros||{}).status||[],"aplicarFiltrosAf");
   preencherSelect("afFiltroSexo",(d.filtros||{}).sexos||[],"Todos");
   preencherSelect("afFiltroAno",(d.filtros||{}).anos||[],"Todos");
   const anoVig=String(d.anoVigente||new Date().getFullYear());
@@ -392,18 +396,20 @@ function prepararAfastamentos(){
 }
 
 function montarOpcoesAf(tipo,lista){montarOpcoesMultiGenerico(tipo,lista,"af");}
-function toggleMultiAf(tipo){toggleMultiGenerico(tipo,"af");}
-function selecionarTodosAf(tipo,marcar){selecionarTodosGenerico(tipo,marcar,"af",aplicarFiltrosAf);}
-function filtrarOpcoesAf(tipo){filtrarOpcoesGenerico(tipo,"af");}
+function toggleMultiAf(tipo){if(tipo==="status"){toggleFiltroStatus("af"); return;} toggleMultiGenerico(tipo,"af");}
+function selecionarTodosAf(tipo,marcar){if(tipo==="status"){selecionarTodosStatus("af",marcar,aplicarFiltrosAf); return;} selecionarTodosGenerico(tipo,marcar,"af",aplicarFiltrosAf);}
+function filtrarOpcoesAf(tipo){if(tipo==="status"){filtrarFiltroStatus("af"); return;} filtrarOpcoesGenerico(tipo,"af");}
 function selecionadosAf(tipo){return selecionadosGenerico(tipo,"af");}
-function atualizarBotoesAf(){atualizarBotoesGenerico("af","Todos","Todas");}
-function limparFiltrosAf(){limparFiltrosGenerico("af"); setTextValue("afFiltroSexo",""); setTextValue("afFiltroAno",""); aplicarFiltrosAf();}
+function atualizarBotoesAf(){atualizarBotoesGenerico("af","Todos","Todas"); atualizarBotaoStatus("af");}
+function limparFiltrosAf(){limparFiltrosGenerico("af"); setTextValue("afBuscaStatus",""); resetarFiltroStatus("af"); setTextValue("afFiltroSexo",""); setTextValue("afFiltroAno",""); aplicarFiltrosAf();}
 
 function aplicarFiltrosAf(){
   const setores=selecionadosAf("setor"), funcoes=selecionadosAf("funcao"), sexo=document.getElementById("afFiltroSexo")?.value||"", ano=document.getElementById("afFiltroAno")?.value||"";
+  const status=statusSelecionados("af");
   AF50_FILTRADOS=(AF50_DADOS.registros||[]).filter(item=>{
     if(setores.length&&setores.indexOf(item.setor)===-1)return false;
     if(funcoes.length&&funcoes.indexOf(item.funcao)===-1)return false;
+    if(status.indexOf(item.status)===-1)return false;
     if(sexo&&item.sexo!==sexo)return false;
     if(ano&&String(item.ano)!==String(ano))return false;
     return true;
@@ -988,6 +994,13 @@ function dataIsoLocal(data) {
   return y + "-" + m + "-" + d;
 }
 
+function possuiPendenciaVacinal(item) {
+  return item.esquemaCompleto !== "Completo" ||
+    item.dtCompleta !== "Completa" ||
+    item.hepCompleta !== "Completa" ||
+    item.covidCompleta !== "Completa";
+}
+
 function aplicarFiltrosVacinas() {
   const setores = selecionadosVac("setor");
   const funcoes = selecionadosVac("funcao");
@@ -1004,8 +1017,8 @@ function aplicarFiltrosVacinas() {
     return true;
   });
 
-  // Pendência vacinal operacional = coluna SITUAÇÃO VACINAL geral incompleta.
-  VAC_TABELA_BASE = VAC_FILTRADOS.filter(item => item.esquemaCompleto !== "Completo");
+  // Pendência vacinal operacional = qualquer vacina monitorada pendente.
+  VAC_TABELA_BASE = VAC_FILTRADOS.filter(possuiPendenciaVacinal);
   atualizarBotoesVac();
   renderizarResumoVacinas(VAC_FILTRADOS);
   renderizarTabelaVacinas();
@@ -1059,7 +1072,7 @@ function renderizarResumoVacinas(lista) {
 function pendenciasVacinasPorCampo(registros, campo) {
   const grupo = {};
   (registros || []).forEach(item => {
-    if (item.esquemaCompleto !== "Completo") addGrupoJS(grupo, item[campo], 1);
+    if (possuiPendenciaVacinal(item)) addGrupoJS(grupo, item[campo], 1);
   });
   return toArrayJS(grupo).slice(0, 12);
 }
@@ -1070,8 +1083,8 @@ function pendenciasVacinasPorCampoDetalhado(registros, campo) {
     const nome = item[campo] || "Não informado";
     if (!grupo[nome]) grupo[nome] = { nome: nome, quantidade: 0, dt: 0, hep: 0, covid: 0, colaboradores: 0, completos: 0 };
     grupo[nome].colaboradores++;
-    if (item.esquemaCompleto === "Completo") grupo[nome].completos++;
-    if (item.esquemaCompleto !== "Completo") grupo[nome].quantidade++;
+    if (!possuiPendenciaVacinal(item)) grupo[nome].completos++;
+    if (possuiPendenciaVacinal(item)) grupo[nome].quantidade++;
     if (item.dtCompleta !== "Completa") grupo[nome].dt++;
     if (item.hepCompleta !== "Completa") grupo[nome].hep++;
     if (item.covidCompleta !== "Completa") grupo[nome].covid++;
@@ -1142,7 +1155,7 @@ function renderizarTabelaVacinas() {
   const tbody = document.querySelector("#vacTblPendencias tbody");
   if (!tbody) return;
   tbody.innerHTML = lista.slice(0,500).map(item => '<tr><td>'+esc(item.mat)+'</td><td>'+esc(item.nome)+'</td><td>'+esc(item.status)+'</td><td>'+esc(item.setor)+'</td><td>'+esc(item.funcao)+'</td><td>'+esc(item.sexo)+'</td><td>'+esc(item.dtCompleta)+'</td><td>'+esc(item.hepCompleta)+'</td><td>'+esc(item.covidCompleta)+'</td><td>'+esc(item.esquemaCompleto)+'</td></tr>').join('');
-  setText("vacTabelaResumo", "Exibindo " + Math.min(lista.length,500) + " de " + lista.length + " colaboradores com pendência vacinal geral.");
+  setText("vacTabelaResumo", "Exibindo " + Math.min(lista.length,500) + " de " + lista.length + " colaboradores com pendência vacinal.");
   atualizarSetasOrdenacaoVacinas();
 }
 
@@ -1259,7 +1272,7 @@ function formatarDataBRVac(dataIso) {
 
 /* MULTISELECT GENÉRICO */
 function montarOpcoesMultiGenerico(tipo,lista,prefixo){const alvo=document.getElementById(prefixo+(tipo==="setor"?"OpcoesSetor":"OpcoesFuncao")); if(!alvo)return; alvo.innerHTML=(lista||[]).map(v=>'<label class="check-row" data-text="'+escAttr(normalizarTextoJS(v))+'"><input type="checkbox" value="'+escAttr(v)+'" onchange="'+(prefixo==="af"?'aplicarFiltrosAf':'aplicarFiltrosPat41')+'()"><span>'+esc(v)+'</span></label>').join("");}
-function toggleMultiGenerico(tipo,prefixo){const atual=document.getElementById(prefixo+(tipo==="setor"?"PanelSetor":"PanelFuncao")); const outro=document.getElementById(prefixo+(tipo==="setor"?"PanelFuncao":"PanelSetor")); if(outro)outro.classList.remove("open"); if(atual)atual.classList.toggle("open");}
+function toggleMultiGenerico(tipo,prefixo){const atual=document.getElementById(prefixo+(tipo==="setor"?"PanelSetor":"PanelFuncao")); const outro=document.getElementById(prefixo+(tipo==="setor"?"PanelFuncao":"PanelSetor")); const status=document.getElementById(prefixo+"PanelStatus"); if(outro)outro.classList.remove("open"); if(status)status.classList.remove("open"); if(atual)atual.classList.toggle("open");}
 function selecionarTodosGenerico(tipo,marcar,prefixo,callback){const painel=document.getElementById(prefixo+(tipo==="setor"?"PanelSetor":"PanelFuncao")); if(!painel)return; painel.querySelectorAll("label.check-row").forEach(row=>{if(row.style.display!=="none"){const input=row.querySelector("input[type='checkbox']"); if(input)input.checked=!!marcar;}}); callback();}
 function filtrarOpcoesGenerico(tipo,prefixo){const buscaId=prefixo+(tipo==="setor"?"BuscaSetor":"BuscaFuncao"); const painelId=prefixo+(tipo==="setor"?"PanelSetor":"PanelFuncao"); const busca=normalizarTextoJS(document.getElementById(buscaId)?.value||""); const painel=document.getElementById(painelId); if(!painel)return; painel.querySelectorAll("label.check-row").forEach(row=>{const texto=row.getAttribute("data-text")||normalizarTextoJS(row.textContent||""); row.style.display=!busca||texto.indexOf(busca)!==-1?"flex":"none";});}
 function selecionadosGenerico(tipo,prefixo){const painel=document.getElementById(prefixo+(tipo==="setor"?"PanelSetor":"PanelFuncao")); if(!painel)return[]; return Array.from(painel.querySelectorAll("input[type='checkbox']:checked")).map(c=>c.value);}

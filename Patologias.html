@@ -2,7 +2,7 @@
   <style>
     .patologias-v41 .filter-panel{
       display:grid;
-      grid-template-columns:1fr 1fr 180px 150px;
+      grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) minmax(150px,.9fr) minmax(95px,.55fr) 135px;
       gap:12px;
       align-items:end;
       margin-bottom:18px;
@@ -140,6 +140,15 @@
         <input class="multi-search" id="pat41BuscaFuncao" placeholder="Pesquisar função" oninput="filtrarOpcoesPat41('funcao')">
         <div class="multi-actions"><button type="button" onclick="selecionarTodosPat41('funcao',true)">Marcar todas</button><button type="button" onclick="selecionarTodosPat41('funcao',false)">Limpar</button></div>
         <div id="pat41OpcoesFuncao"></div>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>Status colaborador</label>
+      <button type="button" class="multi-btn" id="pat41BtnStatus" onclick="toggleMultiPat41('status')"><span>Todos os status</span><b>▼</b></button>
+      <div class="multi-panel" id="pat41PanelStatus">
+        <input class="multi-search" id="pat41BuscaStatus" placeholder="Pesquisar status" oninput="filtrarOpcoesPat41('status')">
+        <div class="multi-actions"><button type="button" onclick="selecionarTodosPat41('status',true)">Marcar todos</button><button type="button" onclick="selecionarTodosPat41('status',false)">Limpar</button></div>
+        <div id="pat41OpcoesStatus"></div>
       </div>
     </div>
     <div class="filter-group">
