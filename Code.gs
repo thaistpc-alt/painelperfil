@@ -57,3 +57,61 @@ function onOpen() {
     .addItem("Diagnóstico geral", "diagnosticarBases")
     .addToUi();
 }
+
+function autorizarPainelPerfilSaude() {
+  var cfg = (typeof CONFIG !== "undefined") ? CONFIG : {
+    spreadsheetId: "1ap49yRtC1HfT89yYFMmHPXZlvUyLGqeEGx9LuwoD-rY",
+    sheets: {
+      perfil: { name: "BD PERFIL" },
+      patologias: { name: "BD PATOLOGIAS" },
+      vacinas: { name: "BD VACINAS" },
+      afastamentos: { name: "BD AFASTAMENTOS" },
+      acidentes: { name: "BD ACIDENTES" },
+      examesAcidentes: { name: "EXAMES ACIDENTES" }
+    }
+  };
+  var ss = SpreadsheetApp.openById(cfg.spreadsheetId);
+  var abas = {};
+  Object.keys(cfg.sheets).forEach(function(key) {
+    var sheet = ss.getSheetByName(cfg.sheets[key].name);
+    abas[key] = sheet ? {
+      nome: sheet.getName(),
+      linhas: sheet.getLastRow(),
+      colunas: sheet.getLastColumn()
+    } : {
+      nome: cfg.sheets[key].name,
+      erro: "Aba não encontrada"
+    };
+  });
+  return {
+    sucesso: true,
+    planilha: ss.getName(),
+    abas: abas,
+    timezone: Session.getScriptTimeZone(),
+    usuario: Session.getActiveUser().getEmail()
+  };
+}
+
+function diagnosticoRuntimePainel() {
+  var funcoes = [
+    "carregarResumoPerfil",
+    "carregarPatologias",
+    "carregarAfastamentos",
+    "carregarVacinas",
+    "carregarExames",
+    "carregarAcidentes",
+    "carregarTratativasAcidentes",
+    "diagnosticarBases",
+    "garantirColunasTratativasAcidentes"
+  ];
+  var status = {};
+  funcoes.forEach(function(nome) {
+    status[nome] = typeof this[nome] === "function";
+  }, this);
+  return {
+    sucesso: true,
+    configDisponivel: typeof CONFIG !== "undefined",
+    funcoes: status,
+    data: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss")
+  };
+}
