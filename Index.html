@@ -4,12 +4,11 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PAINEL PERFIL DE SAÚDE SESMT HRC</title>
+  <title>SESMT HRC - Perfil de Saúde</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <?!= include("Style"); ?>
-  <script src="https://www.gstatic.com/charts/loader.js"></script>
 </head>
 <body>
   <div id="app">
@@ -24,6 +23,7 @@
         <button class="menu-item" data-page="patologias"><span>PT</span><b>Patologias</b></button>
         <button class="menu-item" data-page="afastamentos"><span>AF</span><b>Afastamentos</b></button>
         <button class="menu-item" data-page="vacinas"><span>VC</span><b>Vacinas</b></button>
+        <button class="menu-item" data-page="exames"><span>EC</span><b>Exames Complementares</b></button>
         <button class="menu-item" data-page="acidentes"><span>AB</span><b>Acidentes Mat. Biológico</b></button>
       </nav>
       <div class="sidebar-footer">
@@ -36,7 +36,7 @@
         <div class="topbar-title"><small>PAINEL SESMT HRC</small><h2 id="tituloPagina">Perfil de Saúde</h2><p id="subtituloPagina">Visão quantitativa dos dados de saúde ocupacional</p></div>
         <div class="topbar-actions"><span id="atualizadoEm">Carregando...</span><button class="btn-secondary" onclick="recarregarPaginaAtual()">Atualizar</button></div>
       </header>
-      <section id="loading" class="loading"><div class="spinner"></div><p>Carregando...</p></section>
+      <section id="loading" class="loading"><div class="spinner"></div><p id="loadingText">Carregando...</p></section>
       <section id="conteudo" class="content hidden"></section>
     </main>
   </div>

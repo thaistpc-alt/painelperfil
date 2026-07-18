@@ -1,48 +1,43 @@
 <script>
-google.charts.load("current", { packages: ["corechart", "bar"] });
-
-let paginaAtual = "perfil";
-let dadosPerfil = null;
-let dadosPatologias = null;
-let dadosAfastamentos = null;
-let dadosVacinas = null;
-let patTabelaBase = [];
-const VIEW_CACHE = {};
-let precargaIniciada = false;
-let tokenNavegacao = 0;
-
-const titulos = {
-  perfil: ["Perfil de Saúde", "Visão quantitativa dos dados de saúde ocupacional"],
-  patologias: ["Patologias", "Análise das patologias informadas pelos colaboradores"],
-  afastamentos: ["Afastamentos", "Indicadores de afastamentos dos colaboradores"],
-  vacinas: ["Vacinas", "Cobertura vacinal e acompanhamento de pendências"],
-  acidentes: ["Acidentes com Material Biológico", "Histórico de acidentes biológicos"]
+const APP = {
+  page: "perfil",
+  viewCache: {},
+  dataCache: {},
+  config: null,
+  sort: {},
+  pageIndex: {},
+  titles: {
+    perfil: ["Perfil de Saúde", "Visão quantitativa consolidada"],
+    patologias: ["Patologias", "Análise das patologias informadas"],
+    afastamentos: ["Afastamentos", "Indicadores de afastamentos dos colaboradores"],
+    vacinas: ["Vacinas", "Cobertura vacinal e acompanhamento de pendências"],
+    exames: ["Exames Complementares", "Acompanhamento de exames ocupacionais"],
+    acidentes: ["Acidentes Mat. Biológico", "Acidentes e tratativas de seguimento"]
+  }
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-  configurarMenu();
-  google.charts.setOnLoadCallback(() => trocarPagina("perfil"));
-});
+document.addEventListener("DOMContentLoaded", iniciarPortal);
 
-function configurarMenu() {
+function iniciarPortal() {
   document.querySelectorAll(".menu-item").forEach(btn => {
-    btn.onclick = () => trocarPagina(btn.getAttribute("data-page"));
+    btn.addEventListener("click", () => trocarPagina(btn.getAttribute("data-page")));
   });
   try {
-    if (localStorage.getItem("perfilSaudeMenuRecolhido") === "1") {
-      document.getElementById("app").classList.add("menu-recolhido");
-    }
+    if (localStorage.getItem("perfilSaudeMenuRecolhido") === "1") document.getElementById("app").classList.add("menu-recolhido");
   } catch (e) {}
   atualizarBotaoMenuRecolhido();
+  mostrarLoading("Carregando configurações...");
+  google.script.run.withSuccessHandler(ret => {
+    APP.config = ret || {};
+    trocarPagina("perfil");
+  }).withFailureHandler(erroPortal).carregarConfiguracoes();
 }
 
 function alternarMenu() {
   const app = document.getElementById("app");
-  if (!app) return;
   const recolhido = app.classList.toggle("menu-recolhido");
   try { localStorage.setItem("perfilSaudeMenuRecolhido", recolhido ? "1" : "0"); } catch (e) {}
   atualizarBotaoMenuRecolhido();
-  setTimeout(() => window.dispatchEvent(new Event("resize")), 240);
 }
 
 function atualizarBotaoMenuRecolhido() {
@@ -50,1260 +45,512 @@ function atualizarBotaoMenuRecolhido() {
   const btn = document.querySelector(".menu-collapse-btn");
   if (!app || !btn) return;
   const recolhido = app.classList.contains("menu-recolhido");
-  const icone = btn.querySelector("span");
-  const texto = btn.querySelector("b");
-  if (icone) icone.textContent = recolhido ? "›" : "«";
-  if (texto) texto.textContent = recolhido ? "Expandir menu" : "Recolher menu";
+  const span = btn.querySelector("span");
+  const text = btn.querySelector("b");
+  if (span) span.textContent = recolhido ? "›" : "«";
+  if (text) text.textContent = recolhido ? "Expandir menu" : "Recolher menu";
   btn.title = recolhido ? "Expandir menu" : "Recolher menu";
 }
 
-function trocarPagina(pagina) {
-  paginaAtual = pagina || "perfil";
-  const paginaSolicitada = paginaAtual;
-  const meuToken = ++tokenNavegacao;
-  document.querySelectorAll(".menu-item").forEach(btn => btn.classList.toggle("active", btn.getAttribute("data-page") === paginaAtual));
-  const info = titulos[paginaAtual] || titulos.perfil;
-  document.getElementById("tituloPagina").textContent = info[0];
-  document.getElementById("subtituloPagina").textContent = info[1];
-
-  if (VIEW_CACHE[paginaSolicitada]) {
-    document.getElementById("conteudo").innerHTML = VIEW_CACHE[paginaSolicitada];
+function trocarPagina(page) {
+  APP.page = page || "perfil";
+  document.querySelectorAll(".menu-item").forEach(btn => btn.classList.toggle("active", btn.getAttribute("data-page") === APP.page));
+  const t = APP.titles[APP.page] || APP.titles.perfil;
+  setText("tituloPagina", t[0]);
+  setText("subtituloPagina", t[1]);
+  if (APP.viewCache[APP.page]) {
+    setHtml("conteudo", APP.viewCache[APP.page]);
     esconderLoading();
-    carregarDadosPaginaAtual();
+    carregarDadosModulo(APP.page);
     return;
   }
-
-  mostrarLoading("Carregando " + info[0] + "...");
-  google.script.run
-    .withSuccessHandler(html => {
-      VIEW_CACHE[paginaSolicitada] = html;
-      if (meuToken !== tokenNavegacao || paginaAtual !== paginaSolicitada) return;
-      document.getElementById("conteudo").innerHTML = html;
-      esconderLoading();
-      carregarDadosPaginaAtual();
-    })
-    .withFailureHandler(erroPortal)
-    .carregarView(paginaSolicitada);
-}
-
-
-function agendarPrecarregamento() {
-  if (precargaIniciada) return;
-  precargaIniciada = true;
-  setTimeout(() => {
-    precarregarViews(["patologias", "afastamentos", "vacinas", "acidentes"], 0);
-    precarregarDadosSecundarios();
-  }, 500);
-}
-function precarregarViews(fila, indice) {
-  if (indice >= fila.length) return;
-  const pagina = fila[indice];
-  if (VIEW_CACHE[pagina]) { precarregarViews(fila, indice + 1); return; }
+  mostrarLoading("Carregando " + t[0] + "...");
   google.script.run.withSuccessHandler(html => {
-    VIEW_CACHE[pagina] = html;
-    precarregarViews(fila, indice + 1);
-  }).withFailureHandler(() => precarregarViews(fila, indice + 1)).carregarView(pagina);
-}
-function precarregarDadosSecundarios() {
-  if (dadosPatologias) { precarregarAfastamentos(); return; }
-  google.script.run.withSuccessHandler(ret => {
-    dadosPatologias = ret || {};
-    precarregarAfastamentos();
-  }).withFailureHandler(precarregarAfastamentos).carregarPatologias();
-}
-function precarregarAfastamentos() {
-  if (dadosAfastamentos) { precarregarVacinas(); return; }
-  google.script.run.withSuccessHandler(ret => {
-    dadosAfastamentos = ret || {};
-    precarregarVacinas();
-  }).withFailureHandler(precarregarVacinas).carregarAfastamentos();
-}
-function precarregarVacinas() {
-  if (dadosVacinas) return;
-  google.script.run.withSuccessHandler(ret => {
-    dadosVacinas = ret || {};
-  }).withFailureHandler(() => {}).carregarVacinas();
+    APP.viewCache[APP.page] = html || "";
+    setHtml("conteudo", APP.viewCache[APP.page]);
+    esconderLoading();
+    carregarDadosModulo(APP.page);
+  }).withFailureHandler(erroPortal).carregarView(APP.page);
 }
 
-function carregarDadosPaginaAtual() {
-  if (paginaAtual === "perfil") carregarDadosPerfil();
-  else if (paginaAtual === "patologias") carregarDadosPatologias();
-  else if (paginaAtual === "afastamentos") carregarDadosAfastamentos();
-  else if (paginaAtual === "vacinas") carregarDadosVacinas();
-  else document.getElementById("atualizadoEm").textContent = "Aba em construção";
+function carregarDadosModulo(page, force) {
+  if (APP.dataCache[page] && !force) {
+    renderizarModulo(page);
+    return;
+  }
+  const calls = {
+    perfil: "carregarResumoPerfil",
+    patologias: "carregarPatologias",
+    afastamentos: "carregarAfastamentos",
+    vacinas: "carregarVacinas",
+    exames: "carregarExames",
+    acidentes: "carregarAcidentes"
+  };
+  const fn = calls[page];
+  if (!fn) return;
+  mostrarLoading("Carregando dados...");
+  google.script.run.withSuccessHandler(ret => {
+    APP.dataCache[page] = ret || {};
+    esconderLoading();
+    renderizarModulo(page);
+    if (page === "acidentes") carregarTratativas();
+  }).withFailureHandler(erroPortal)[fn]();
+}
+
+function carregarTratativas() {
+  if (APP.dataCache.tratativas) { renderizarModulo("acidentes"); return; }
+  google.script.run.withSuccessHandler(ret => {
+    APP.dataCache.tratativas = ret || {};
+    if (APP.page === "acidentes") renderizarModulo("acidentes");
+  }).withFailureHandler(() => {}).carregarTratativasAcidentes();
 }
 
 function recarregarPaginaAtual() {
-  if (paginaAtual === "perfil") { dadosPerfil = null; carregarDadosPerfil(true); return; }
-  if (paginaAtual === "patologias") { dadosPatologias = null; carregarDadosPatologias(true); return; }
-  if (paginaAtual === "afastamentos") { dadosAfastamentos = null; carregarDadosAfastamentos(true); return; }
-  if (paginaAtual === "vacinas") { dadosVacinas = null; carregarDadosVacinas(true); return; }
-  trocarPagina(paginaAtual);
+  delete APP.dataCache[APP.page];
+  if (APP.page === "acidentes") delete APP.dataCache.tratativas;
+  carregarDadosModulo(APP.page, true);
 }
 
-function mostrarLoading(txt) {
-  document.getElementById("loading").classList.remove("hidden");
-  document.getElementById("conteudo").classList.add("hidden");
-  const p = document.querySelector("#loading p");
-  if (p) p.textContent = txt || "Carregando...";
-}
-function esconderLoading() {
-  document.getElementById("loading").classList.add("hidden");
-  document.getElementById("conteudo").classList.remove("hidden");
-}
-function erroPortal(erro) {
-  esconderLoading();
-  document.getElementById("conteudo").innerHTML = "<div class='placeholder'><h3 style='color:#dc2626'>Erro ao carregar</h3><p>" + (erro && erro.message ? erro.message : erro) + "</p></div>";
+function renderizarModulo(page) {
+  setText("atualizadoEm", "Atualizado em " + ((APP.dataCache[page] || {}).updatedAt || (APP.config || {}).updatedAt || "-"));
+  if (page === "perfil") renderPerfil();
+  if (page === "patologias") renderPatologias();
+  if (page === "afastamentos") renderAfastamentos();
+  if (page === "vacinas") renderVacinas();
+  if (page === "exames") renderExames();
+  if (page === "acidentes") renderAcidentes();
 }
 
-function normalizarTextoJS(valor){ if(valor===null||valor===undefined)return""; return String(valor).trim().replace(/\s+/g," ").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase(); }
-function pct(valor){ return (Number(valor||0)).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}) + "%"; }
-function fmt(valor){ return Number(valor||0).toLocaleString("pt-BR"); }
-function setText(id, valor){ const el=document.getElementById(id); if(el) el.textContent=valor; }
-function setTextValue(id, valor) { const el = document.getElementById(id); if (el) el.value = valor; }
-function preencherSelect(id, lista, primeira){ const el=document.getElementById(id); if(!el)return; const val=el.value; el.innerHTML="<option value=''>"+(primeira||"Todos")+"</option>"; (lista||[]).forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; el.appendChild(o); }); if(val) el.value=val; }
-function esc(v){ return String(v===null||v===undefined?"":v).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
-function escAttr(v){ return esc(v).replace(/'/g,"&#039;"); }
-function addGrupoJS(obj,chave,qtd){ const k=chave||"Não informado"; obj[k]=(obj[k]||0)+(qtd||1); }
-function toArrayJS(obj){ return Object.keys(obj).map(k=>({nome:k,quantidade:obj[k]})).sort((a,b)=>b.quantidade-a.quantidade); }
-function familiaCidJS(cid){ const m=String(cid||"").toUpperCase().match(/[A-Z]/); return m?m[0]:""; }
-function classSexo(s){ const v=normalizarTextoJS(s); if(v==="F"||v==="FEMININO"||v==="FEMININA")return"Feminino"; if(v==="M"||v==="MASCULINO"||v==="MASCULINA")return"Masculino"; return s || "Não informado"; }
-function statusExcluidoPadrao(status) {
-  const s = normalizarTextoJS(status);
-  return s.indexOf("DESLIG") !== -1 ||
-    s.indexOf("APOSENT") !== -1 ||
-    s.indexOf("OBITO") !== -1 ||
-    s.indexOf("FALECID") !== -1 ||
-    (s.indexOf("AFASTADO") !== -1 && s.indexOf("INSS") !== -1);
+function renderFiltros(module, data, extras) {
+  const op = data.opcoes || {};
+  const html = '<div class="filter-row">' +
+    filtroMulti(module, "setor", "Setor", op.setores || [], true) +
+    filtroMulti(module, "funcao", "Função", op.funcoes || [], true) +
+    filtroMultiStatus(module, op.status || ((APP.config || {}).statusOptions || [])) +
+    filtroMulti(module, "sexo", "Sexo", op.sexos || [], true) +
+    filtroSelect(module, "ano", "Ano", extras && extras.anos, "Todos") +
+    filtroSelect(module, "situacao", extras && extras.situacoes, "Todas") +
+    '<button class="btn-secondary" onclick="limparFiltros(\'' + module + '\')">Limpar filtros</button>' +
+    '<div class="filter-group"><label>Pesquisa</label><input class="filter-input" id="' + module + '_busca" placeholder="Nome ou matrícula" oninput="debouncedRender(\'' + module + '\')"></div>' +
+  '</div>';
+  setHtml(module + "Filtros", html);
+  ["setor", "funcao", "status", "sexo"].forEach(t => atualizarTextoMulti(module, t));
 }
-function montarFiltroStatus(prefixo, lista, callbackNome) {
-  const alvo = document.getElementById(prefixo + "OpcoesStatus");
-  if (!alvo) return;
-  alvo.innerHTML = (lista || []).map(status => {
-    const checked = statusExcluidoPadrao(status) ? "" : " checked";
-    return '<label class="check-row" data-text="' + escAttr(normalizarTextoJS(status)) + '">' +
-      '<input type="checkbox" value="' + escAttr(status) + '"' + checked + ' onchange="' + callbackNome + '()">' +
-      '<span>' + esc(status) + '</span>' +
-    '</label>';
-  }).join("");
-  atualizarBotaoStatus(prefixo);
+
+function filtroMulti(module, type, label, options, checked) {
+  return '<div class="filter-group"><label>' + esc(label) + '</label><button type="button" class="multi-btn" id="' + module + '_' + type + '_btn" onclick="toggleMulti(\'' + module + '\',\'' + type + '\')"><span>Todos selecionados</span><b>▾</b></button><div class="multi-panel" id="' + module + '_' + type + '_panel">' +
+    '<input class="multi-search" placeholder="Pesquisar" oninput="filtrarMulti(\'' + module + '\',\'' + type + '\',this.value)"><div class="multi-actions"><button onclick="marcarMulti(\'' + module + '\',\'' + type + '\',true)" type="button">Todos</button><button onclick="marcarMulti(\'' + module + '\',\'' + type + '\',false)" type="button">Limpar</button></div>' +
+    (options || []).map(v => rowCheck(module, type, v, checked)).join("") + '</div></div>';
 }
-function statusSelecionados(prefixo) {
-  const alvo = document.getElementById(prefixo + "OpcoesStatus");
-  if (!alvo) return [];
-  return Array.from(alvo.querySelectorAll("input[type='checkbox']:checked")).map(input => input.value);
+
+function filtroMultiStatus(module, options) {
+  return '<div class="filter-group"><label>Status do colaborador</label><button type="button" class="multi-btn" id="' + module + '_status_btn" onclick="toggleMulti(\'' + module + '\',\'status\')"><span>Status padrão</span><b>▾</b></button><div class="multi-panel" id="' + module + '_status_panel">' +
+    '<input class="multi-search" placeholder="Pesquisar status" oninput="filtrarMulti(\'' + module + '\',\'status\',this.value)"><div class="multi-actions"><button onclick="statusPadrao(\'' + module + '\')" type="button">Padrão</button><button onclick="marcarMulti(\'' + module + '\',\'status\',true)" type="button">Todos</button><button onclick="marcarMulti(\'' + module + '\',\'status\',false)" type="button">Limpar</button></div>' +
+    (options || []).map(o => rowCheck(module, "status", o.nome || o, !!o.selected)).join("") + '</div></div>';
 }
-function resetarFiltroStatus(prefixo) {
-  const alvo = document.getElementById(prefixo + "OpcoesStatus");
-  if (!alvo) return;
-  alvo.querySelectorAll("input[type='checkbox']").forEach(input => {
-    input.checked = !statusExcluidoPadrao(input.value);
+
+function rowCheck(module, type, value, checked) {
+  return '<label class="check-row" data-text="' + escAttr(norm(value)) + '"><input type="checkbox" value="' + escAttr(value) + '"' + (checked ? " checked" : "") + ' onchange="aplicarFiltros(\'' + module + '\')"><span>' + esc(value) + '</span></label>';
+}
+
+function filtroSelect(module, type, label, options, first) {
+  const lista = options || [];
+  return '<div class="filter-group"><label>' + esc(label) + '</label><select class="filter-input" id="' + module + '_' + type + '" onchange="aplicarFiltros(\'' + module + '\')"><option value="">' + esc(first || "Todos") + '</option>' + lista.map(v => '<option value="' + escAttr(v) + '">' + esc(v) + '</option>').join("") + '</select></div>';
+}
+
+function toggleMulti(module, type) {
+  document.querySelectorAll(".multi-panel").forEach(p => {
+    if (p.id !== module + "_" + type + "_panel") p.classList.remove("open");
   });
-  atualizarBotaoStatus(prefixo);
-}
-function atualizarBotaoStatus(prefixo) {
-  const alvo = document.getElementById(prefixo + "OpcoesStatus");
-  const btn = document.querySelector("#" + prefixo + "BtnStatus span");
-  if (!alvo || !btn) return;
-  const inputs = Array.from(alvo.querySelectorAll("input[type='checkbox']"));
-  const selecionados = inputs.filter(input => input.checked);
-  const padrao = inputs.length && inputs.every(input => input.checked !== statusExcluidoPadrao(input.value));
-  if (padrao) btn.textContent = "Status padrão";
-  else if (!selecionados.length) btn.textContent = "Nenhum status";
-  else if (selecionados.length === 1) btn.textContent = selecionados[0].value;
-  else btn.textContent = selecionados.length + " selecionados";
-}
-function toggleFiltroStatus(prefixo) {
-  const painel = document.getElementById(prefixo + "PanelStatus");
-  if (!painel) return;
-  ["Setor", "Funcao"].forEach(tipo => {
-    const outro = document.getElementById(prefixo + "Panel" + tipo);
-    if (outro) outro.classList.remove("open");
-  });
-  painel.classList.toggle("open");
-}
-function filtrarFiltroStatus(prefixo) {
-  const busca = normalizarTextoJS(document.getElementById(prefixo + "BuscaStatus")?.value || "");
-  const alvo = document.getElementById(prefixo + "OpcoesStatus");
-  if (!alvo) return;
-  alvo.querySelectorAll("label.check-row").forEach(row => {
-    const texto = row.getAttribute("data-text") || normalizarTextoJS(row.textContent || "");
-    row.style.display = !busca || texto.indexOf(busca) !== -1 ? "flex" : "none";
-  });
-}
-function selecionarTodosStatus(prefixo, marcar, callback) {
-  const alvo = document.getElementById(prefixo + "OpcoesStatus");
-  if (!alvo) return;
-  alvo.querySelectorAll("label.check-row").forEach(row => {
-    if (row.style.display !== "none") {
-      const input = row.querySelector("input[type='checkbox']");
-      if (input) input.checked = !!marcar;
-    }
-  });
-  atualizarBotaoStatus(prefixo);
-  if (callback) callback();
+  const panel = document.getElementById(module + "_" + type + "_panel");
+  if (panel) panel.classList.toggle("open");
 }
 
-/* PERFIL */
-function carregarDadosPerfil(forcarAtualizacao) {
-  if (dadosPerfil && !forcarAtualizacao) {
-    esconderLoading();
-    renderizarPerfil();
-    return;
-  }
-
-  mostrarLoading("Carregando Perfil de Saúde...");
-  google.script.run
-    .withSuccessHandler(ret => {
-      dadosPerfil = ret || {};
-      esconderLoading();
-      renderizarPerfil();
-      agendarPrecarregamento();
-    })
-    .withFailureHandler(erroPortal)
-    .carregarPerfilSaude();
-}
-function renderizarPerfil() {
-  const d = dadosPerfil || {};
-  document.getElementById("atualizadoEm").textContent = "Atualizado em " + (d.atualizadoEm || "");
-  const cards = d.cards || {};
-  setText("cardTotalColaboradores", fmt(cards.totalColaboradores));
-  setText("cardTotalAtivos", fmt(cards.totalColaboradoresAtivos));
-  setText("pctFeminino", pct(cards.percentualFeminino));
-  setText("pctMasculino", pct(cards.percentualMasculino));
-  const statusTxt = (cards.statusColaboradores || []).map(i => i.nome + ": " + i.quantidade).join("\n");
-  const card = document.getElementById("cardColaboradores"); if(card) card.title = statusTxt;
-  setText("categoriasPatologia", "Categorias consideradas: " + ((d.categoriasPatologia || []).join(", ") || "não informado"));
-  setText("anoAfastamentoPerfil", d.anoVigente || "");
-  setText("anoPatAfPerfil", d.anoVigente || "");
-
-  desenharPizza("chartPatologiaSimNao", d.graficoPatologiaSimNao, "Quantidade");
-  desenharBarras("chartPatologias", d.graficoPatologias, "Quantidade", true);
-  desenharBarras("chartAfastamentosCid", d.graficoAfastamentosPorCid, "Afastamentos", true);
-  desenharComboPatAf("chartPatologiasAfastamentos", d.graficoPatologiasAfastamentos || []);
-  desenharPizza("chartAtividadeFisica", d.graficoAtividadeFisica, "Quantidade");
-  desenharPizza("chartTabagismo", d.graficoTabagismo, "Quantidade");
-  desenharPizza("chartVacinas", d.graficoVacinas, "Quantidade");
-  desenharBarrasDuplas("chartVacinasPorTipo", d.graficoVacinasPorTipo || []);
+function filtrarMulti(module, type, value) {
+  const panel = document.getElementById(module + "_" + type + "_panel");
+  const q = norm(value);
+  if (!panel) return;
+  panel.querySelectorAll(".check-row").forEach(row => row.style.display = !q || (row.getAttribute("data-text") || "").indexOf(q) !== -1 ? "flex" : "none");
 }
 
-/* PATOLOGIAS - MÓDULO ÚNICO V4.1 */
-let PAT41_DADOS = { registros: [], analisados: [], totalAnalisados: 0, filtros: { setores: [], funcoes: [], sexos: [], status: [] } };
-let PAT41_FILTRADOS = [];
-let PAT41_TABELA_BASE = [];
-
-function carregarDadosPatologias(forcarAtualizacao) {
-  if (dadosPatologias && !forcarAtualizacao) {
-    PAT41_DADOS = dadosPatologias;
-    esconderLoading();
-    prepararPatologias();
-    return;
-  }
-
-  mostrarLoading("Carregando Patologias...");
-  google.script.run.withSuccessHandler(function(ret) {
-    dadosPatologias = ret || {};
-    PAT41_DADOS = dadosPatologias;
-    esconderLoading();
-    prepararPatologias();
-  }).withFailureHandler(erroPortal).carregarPatologias();
-}
-function prepararPatologias() {
-  const d = PAT41_DADOS || {};
-  document.getElementById("atualizadoEm").textContent = "Atualizado em " + (d.atualizadoEm || "");
-  const registrosComCid = (d.registros || []).filter(item => item.cids && item.cids.length > 0);
-  const analisados = (d.analisados && d.analisados.length ? d.analisados : d.registros || []).filter(item => item.nome || item.mat);
-  PAT41_DADOS.registros = registrosComCid;
-  PAT41_DADOS.analisados = analisados;
-  montarOpcoesPat41("setor", (d.filtros || {}).setores || Array.from(new Set(analisados.map(i => i.setor).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")));
-  montarOpcoesPat41("funcao", (d.filtros || {}).funcoes || Array.from(new Set(analisados.map(i => i.funcao).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")));
-  montarFiltroStatus("pat41", (d.filtros || {}).status || Array.from(new Set(analisados.map(i => i.status).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")), "aplicarFiltrosPat41");
-  preencherSelect("pat41FiltroSexo", (d.filtros || {}).sexos || Array.from(new Set(analisados.map(i => i.sexo).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")), "Todos");
-  aplicarFiltrosPat41();
-}
-function montarOpcoesPat41(tipo, lista) { montarOpcoesMultiGenerico(tipo, lista, "pat41"); }
-function toggleMultiPat41(tipo) { if(tipo==="status"){toggleFiltroStatus("pat41"); return;} toggleMultiGenerico(tipo, "pat41"); }
-function selecionarTodosPat41(tipo, marcar) { if(tipo==="status"){selecionarTodosStatus("pat41", marcar, aplicarFiltrosPat41); return;} selecionarTodosGenerico(tipo, marcar, "pat41", aplicarFiltrosPat41); }
-function filtrarOpcoesPat41(tipo) { if(tipo==="status"){filtrarFiltroStatus("pat41"); return;} filtrarOpcoesGenerico(tipo, "pat41"); }
-function selecionadosPat41(tipo) { return selecionadosGenerico(tipo, "pat41"); }
-function atualizarBotoesPat41() { atualizarBotoesGenerico("pat41", "Todos", "Todas"); atualizarBotaoStatus("pat41"); }
-function limparFiltrosPat41() { limparFiltrosGenerico("pat41"); setTextValue("pat41BuscaStatus", ""); resetarFiltroStatus("pat41"); aplicarFiltrosPat41(); }
-function aplicarFiltrosPat41() {
-  const setores=selecionadosPat41("setor"), funcoes=selecionadosPat41("funcao"), sexo=document.getElementById("pat41FiltroSexo")?.value||"";
-  const status=statusSelecionados("pat41");
-  const filtro = item => {
-    if(setores.length&&setores.indexOf(item.setor)===-1)return false;
-    if(funcoes.length&&funcoes.indexOf(item.funcao)===-1)return false;
-    if(sexo&&item.sexo!==sexo)return false;
-    if(status.indexOf(item.status)===-1)return false;
-    return true;
-  };
-  const analisadosFiltrados=(PAT41_DADOS.analisados||[]).filter(filtro);
-  PAT41_FILTRADOS=(PAT41_DADOS.registros||[]).filter(item=>filtro(item)&&item.cids&&item.cids.length);
-  PAT41_TABELA_BASE=PAT41_FILTRADOS; patTabelaBase=PAT41_FILTRADOS; atualizarBotoesPat41(); renderizarResumoPat41(PAT41_FILTRADOS, analisadosFiltrados.length); renderizarTabelaPat41();
-}
-function renderizarResumoPat41(lista, totalFiltrado) {
-  const registros=lista||[]; const totalAnalisados=Number(totalFiltrado||0)||registros.length; const totalPatologias=registros.reduce((s,item)=>s+(item.cids||[]).length,0);
-  const familias={}, detalhesFamilia={}, cids={};
-  registros.forEach(item=>(item.cids||[]).forEach(cid=>{const cidLimpo=String(cid||"").toUpperCase().replace(/\s+/g,"").trim(); if(!cidLimpo)return; cids[cidLimpo]=(cids[cidLimpo]||0)+1; const familia=familiaCidPat41(cidLimpo); if(!familia)return; familias[familia]=(familias[familia]||0)+1; if(!detalhesFamilia[familia])detalhesFamilia[familia]={}; detalhesFamilia[familia][cidLimpo]=(detalhesFamilia[familia][cidLimpo]||0)+1;}));
-  const graficoFamilias=Object.keys(familias).map(familia=>{const detalhe=Object.keys(detalhesFamilia[familia]||{}).map(cid=>({nome:cid,quantidade:detalhesFamilia[familia][cid]})).sort((a,b)=>b.quantidade-a.quantidade); return {nome:familia,quantidade:familias[familia],descricao:descricaoFamiliaPat41(familia),cids:detalhe,tooltip:"Família "+familia+" - "+descricaoFamiliaPat41(familia)+"\nTotal: "+fmt(familias[familia])+"\n\n"+detalhe.map(i=>i.nome+": "+fmt(i.quantidade)).join("\n")};}).sort((a,b)=>b.quantidade-a.quantidade);
-  const topCids=Object.keys(cids).map(cid=>({nome:cid,quantidade:cids[cid]})).sort((a,b)=>b.quantidade-a.quantidade).slice(0,10);
-  const topFamilia=graficoFamilias[0]||{nome:"-",quantidade:0,descricao:"-"}; const topCid=topCids[0]||{nome:"-",quantidade:0}; const mediaCids=registros.length?totalPatologias/registros.length:0; const multiplosCids=registros.filter(item=>(item.cids||[]).length>=2).length;
-  setText("pat41CardCom",fmt(registros.length)); setText("pat41PctCom",pct(totalAnalisados?registros.length/totalAnalisados*100:0)+" dos analisados"); setText("pat41CardQtd",fmt(totalPatologias)); setText("pat41CardTopFamilia",topFamilia.nome); setText("pat41TopFamiliaDesc",topFamilia.quantidade?topFamilia.descricao+" — "+fmt(topFamilia.quantidade)+" patologias":"-");
-  setText("pat41ResumoMedia",mediaCids.toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1})); setText("pat41ResumoMultiplos",fmt(multiplosCids)); setText("pat41ResumoCidTop",topCid.nome||"-"); setText("pat41ResumoCidTopDesc",topCid.quantidade?descricaoCidPat41(topCid.nome)+" — "+fmt(topCid.quantidade)+" registros":"-"); setText("pat41ResumoFamilias",fmt(graficoFamilias.length));
-  desenharFamiliasPat41(graficoFamilias); desenharTopCidsPat41(topCids);
-}
-function desenharFamiliasPat41(dados) { desenharVerticalHTML("pat41ChartFamilias",dados,"vbar",ativarTooltipPat41); }
-function desenharTopCidsPat41(dados) { desenharBarrasHTML("pat41ChartTopCids",dados,item=>{const descricao=descricaoCidPat41(item.nome); return item.nome+" - "+descricao+"\nRegistros: "+fmt(item.quantidade);}); }
-function ativarTooltipPat41() {
-  ativarTooltip("pat41Tooltip", "#page-patologias-v41 .vbar, #page-patologias-v41 .bar-row[data-tooltip], #page-afastamentos-v50 .vbar, #page-afastamentos-v50 .bar-row[data-tooltip]");
-}
-function renderizarTabelaPat41() {
-  const busca=normalizarTextoJS(document.getElementById("pat41BuscaTabela")?.value||"");
-  const lista=(PAT41_TABELA_BASE||[]).filter(item=>{ if(!busca)return true; const texto=normalizarTextoJS([item.mat,item.nome,item.sexo,item.idade,item.setor,item.funcao,(item.cids||[]).join(", "),(item.familiasCid||[]).join(", ")].join(" ")); return texto.indexOf(busca)!==-1;});
-  const tbody=document.querySelector("#pat41TblDetalhe tbody"); if(!tbody)return;
-  tbody.innerHTML=lista.slice(0,500).map(item=>{const familias=(item.familiasCid&&item.familiasCid.length)?item.familiasCid:Array.from(new Set((item.cids||[]).map(familiaCidPat41).filter(Boolean))).sort(); return '<tr><td>'+esc(item.mat)+'</td><td>'+esc(item.nome)+'</td><td>'+esc(item.sexo)+'</td><td>'+esc(item.idade)+'</td><td>'+esc(item.setor)+'</td><td>'+esc(item.funcao)+'</td><td>'+esc((item.cids||[]).length)+'</td><td>'+esc((item.cids||[]).join(", "))+'</td><td>'+esc(familias.join(", "))+'</td></tr>';}).join("");
-  setText("pat41TabelaResumo","Exibindo "+Math.min(lista.length,500)+" de "+lista.length+" colaboradores com patologias.");
-}
-function limparPesquisaTabelaPat41(){setTextValue("pat41BuscaTabela",""); renderizarTabelaPat41();}
-
-/* AFASTAMENTOS */
-let AF50_DADOS={registros:[],filtros:{setores:[],funcoes:[],sexos:[],status:[],anos:[]},anoVigente:new Date().getFullYear()};
-let AF50_FILTRADOS=[];
-
-function carregarDadosAfastamentos(forcarAtualizacao){
-  if (dadosAfastamentos && !forcarAtualizacao) {
-    AF50_DADOS = dadosAfastamentos;
-    esconderLoading();
-    prepararAfastamentos();
-    return;
-  }
-
-  mostrarLoading("Carregando Afastamentos...");
-  google.script.run
-    .withSuccessHandler(function(ret){
-      dadosAfastamentos=ret||{};
-      AF50_DADOS=dadosAfastamentos;
-      esconderLoading();
-      prepararAfastamentos();
-    })
-    .withFailureHandler(erroPortal)
-    .carregarAfastamentos();
+function marcarMulti(module, type, checked) {
+  const panel = document.getElementById(module + "_" + type + "_panel");
+  if (!panel) return;
+  panel.querySelectorAll("input[type='checkbox']").forEach(i => { if (i.closest(".check-row").style.display !== "none") i.checked = checked; });
+  atualizarTextoMulti(module, type);
+  aplicarFiltros(module);
 }
 
-function prepararAfastamentos(){
-  const d=AF50_DADOS||{};
-  document.getElementById("atualizadoEm").textContent="Atualizado em "+(d.atualizadoEm||"");
-  montarOpcoesAf("setor",(d.filtros||{}).setores||[]);
-  montarOpcoesAf("funcao",(d.filtros||{}).funcoes||[]);
-  montarFiltroStatus("af",(d.filtros||{}).status||[],"aplicarFiltrosAf");
-  preencherSelect("afFiltroSexo",(d.filtros||{}).sexos||[],"Todos");
-  preencherSelect("afFiltroAno",(d.filtros||{}).anos||[],"Todos");
-  aplicarFiltrosAf();
+function statusPadrao(module) {
+  const defaults = (((APP.dataCache[module] || {}).opcoes || {}).status || (APP.config || {}).statusOptions || []);
+  const selected = {};
+  defaults.forEach(o => { selected[o.nome || o] = !!o.selected; });
+  const panel = document.getElementById(module + "_status_panel");
+  if (!panel) return;
+  panel.querySelectorAll("input[type='checkbox']").forEach(i => i.checked = selected[i.value] !== false);
+  atualizarTextoMulti(module, "status");
+  aplicarFiltros(module);
 }
 
-function montarOpcoesAf(tipo,lista){montarOpcoesMultiGenerico(tipo,lista,"af");}
-function toggleMultiAf(tipo){if(tipo==="status"){toggleFiltroStatus("af"); return;} toggleMultiGenerico(tipo,"af");}
-function selecionarTodosAf(tipo,marcar){if(tipo==="status"){selecionarTodosStatus("af",marcar,aplicarFiltrosAf); return;} selecionarTodosGenerico(tipo,marcar,"af",aplicarFiltrosAf);}
-function filtrarOpcoesAf(tipo){if(tipo==="status"){filtrarFiltroStatus("af"); return;} filtrarOpcoesGenerico(tipo,"af");}
-function selecionadosAf(tipo){return selecionadosGenerico(tipo,"af");}
-function atualizarBotoesAf(){atualizarBotoesGenerico("af","Todos","Todas"); atualizarBotaoStatus("af");}
-function limparFiltrosAf(){limparFiltrosGenerico("af"); setTextValue("afBuscaStatus",""); resetarFiltroStatus("af"); setTextValue("afFiltroSexo",""); setTextValue("afFiltroAno",""); aplicarFiltrosAf();}
+function selecionados(module, type) {
+  const panel = document.getElementById(module + "_" + type + "_panel");
+  if (!panel) return [];
+  return Array.from(panel.querySelectorAll("input[type='checkbox']:checked")).map(i => i.value);
+}
 
-function aplicarFiltrosAf(){
-  const setores=selecionadosAf("setor"), funcoes=selecionadosAf("funcao"), sexo=document.getElementById("afFiltroSexo")?.value||"", ano=document.getElementById("afFiltroAno")?.value||"";
-  const status=statusSelecionados("af");
-  AF50_FILTRADOS=(AF50_DADOS.registros||[]).filter(item=>{
-    if(setores.length&&setores.indexOf(item.setor)===-1)return false;
-    if(funcoes.length&&funcoes.indexOf(item.funcao)===-1)return false;
-    if(status.indexOf(item.status)===-1)return false;
-    if(sexo&&item.sexo!==sexo)return false;
-    if(ano&&String(item.ano)!==String(ano))return false;
+function atualizarTextoMulti(module, type) {
+  const btn = document.querySelector("#" + module + "_" + type + "_btn span");
+  const panel = document.getElementById(module + "_" + type + "_panel");
+  if (!btn || !panel) return;
+  const all = Array.from(panel.querySelectorAll("input[type='checkbox']"));
+  const sel = all.filter(i => i.checked);
+  if (!sel.length) btn.textContent = "Nenhum selecionado";
+  else if (sel.length === all.length) btn.textContent = "Todos selecionados";
+  else if (sel.length === 1) btn.textContent = sel[0].value;
+  else btn.textContent = sel.length + " selecionados";
+}
+
+function limparFiltros(module) {
+  ["setor", "funcao", "sexo"].forEach(t => marcarMultiSemRender(module, t, true));
+  statusPadrao(module);
+  ["ano", "situacao"].forEach(t => { const el = document.getElementById(module + "_" + t); if (el) el.value = ""; });
+  const busca = document.getElementById(module + "_busca");
+  if (busca) busca.value = "";
+  aplicarFiltros(module);
+}
+
+function marcarMultiSemRender(module, type, checked) {
+  const panel = document.getElementById(module + "_" + type + "_panel");
+  if (!panel) return;
+  panel.querySelectorAll("input[type='checkbox']").forEach(i => i.checked = checked);
+  atualizarTextoMulti(module, type);
+}
+
+let debounceTimer = null;
+function debouncedRender(module) {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => aplicarFiltros(module), 220);
+}
+
+function aplicarFiltros(module) {
+  ["setor", "funcao", "status", "sexo"].forEach(t => atualizarTextoMulti(module, t));
+  APP.pageIndex[module] = 0;
+  renderizarModulo(module);
+}
+
+function filtroComum(module, rows) {
+  const set = selecionados(module, "setor");
+  const fun = selecionados(module, "funcao");
+  const sta = selecionados(module, "status");
+  const sex = selecionados(module, "sexo");
+  const ano = getValue(module + "_ano");
+  const sit = getValue(module + "_situacao");
+  const busca = norm(getValue(module + "_busca"));
+  return (rows || []).filter(r => {
+    if (set.length && set.indexOf(r.setor) === -1) return false;
+    if (fun.length && fun.indexOf(r.funcao) === -1) return false;
+    if (sta.length && sta.indexOf(r.status) === -1) return false;
+    if (sex.length && sex.indexOf(r.sexo) === -1) return false;
+    if (ano && String(r.ano || "") !== String(ano)) return false;
+    if (sit && norm(r.situacaoVacinal || r.statusEtapa || "") !== norm(sit)) return false;
+    if (busca && (norm(r.nome).indexOf(busca) === -1 && norm(r.mat).indexOf(busca) === -1)) return false;
     return true;
   });
-  atualizarBotoesAf();
-  renderizarAfastamentos(AF50_FILTRADOS);
 }
 
-function renderizarAfastamentos(lista){
-  const r=resumoAfastamentosJS(lista||[]);
-  setText("afCardTotal",fmt(r.totalAfastamentos));
-  setText("afCardColab",fmt(r.colaboradoresAfastados));
-  setText("afCardDias",fmt(r.diasPerdidos));
-  setText("afCardMedia",(r.mediaDias||0).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}));
-  setText("afCardSemCid",fmt(r.semCid));
-  setText("afCardCidF",fmt(r.cidF));
-  setText("afCardCidM",fmt(r.cidM));
-
-  const topFam=r.familiasComCid[0]||{nome:"-",quantidade:0};
-  setText("afCardTopFamilia",topFam.nome);
-  setText("afTopFamiliaDesc",topFam.quantidade ? descricaoFamiliaPat41(topFam.nome)+" — "+fmt(topFam.quantidade)+" afastamentos" : "-");
-
-  desenharMesesHTML("afChartMesesQtd",r.mesesQtd);
-  desenharBarrasHTML("afChartSetores",r.setores,item=>item.nome+"\nAfastamentos: "+fmt(item.quantidade));
-  desenharFamiliasAfastamentosHTML("afChartFamilias",r.familiasComCid);
-  desenharBarrasHTML("afChartTopCids",r.topCids,item=>item.nome+" - "+descricaoCidAfastamento(item.nome)+"\nAfastamentos: "+fmt(item.quantidade));
-  desenharBarrasHTML("afChartDuracao",r.duracao,item=>item.nome+"\nAfastamentos: "+fmt(item.quantidade));
-  desenharPatologiasXAfastamentosAf("afChartPatologiasAfastamentos",r.patologiasAfastamentos);
+function renderPerfil() {
+  const data = APP.dataCache.perfil || {};
+  if (!document.getElementById("perfilFiltros")) return;
+  if (!document.getElementById("perfil_setor_btn")) renderFiltros("perfil", data, {});
+  const rows = filtroComum("perfil", data.colaboradores || []);
+  const rowKeys = {};
+  rows.forEach(r => { rowKeys[r.key] = true; });
+  const withPat = rows.filter(r => (r.cids || []).length).length;
+  const totalCids = sum(rows, r => (r.cids || []).length);
+  const afastKeys = {};
+  ((data.eventos || {}).afastamentos || []).forEach(e => { if (rowKeys[e.key]) afastKeys[e.key] = true; });
+  const eventosAfast = ((data.eventos || {}).afastamentos || []).filter(e => rowKeys[e.key]);
+  setHtml("perfilCards", [
+    kpi("👥", "Colaboradores", rows.length, "Filtro atual"),
+    kpi("CID", "Com patologias", withPat, rows.length - withPat + " sem patologias"),
+    kpi("AF", "Afastamentos", eventosAfast.length, Object.keys(afastKeys).length + " colaboradores"),
+    kpi("AB", "Acidentes biológicos", rows.filter(r => r.acidentes).length, "Colaboradores distintos"),
+    kpi("VC", "Situação vacinal", pct(rows.filter(r => r.vacCompleta).length, rows.length), "Com esquema completo"),
+    kpi("Σ", "CIDs registrados", totalCids, "Total de ocorrências")
+  ].join(""));
+  renderBars("perfilFamilias", grupoCids(rows, "familiasCid"), 12);
+  renderBars("perfilTopCids", grupoCids(rows, "cids"), 10);
+  renderBars("perfilPatAf", cruzarPatAf(rows, data.eventos.afastamentos || []), 12);
+  renderBars("perfilHabitos", grupoHabitos(rows), 12);
 }
 
-function resumoAfastamentosJS(lista){
-  const colaboradores={}, cids={}, familiasComCid={}, detalheFamiliaCid={}, setores={}, mesesQtd={}, duracao={};
-  let diasPerdidos=0, semCid=0, cidF=0, cidM=0;
-  (lista||[]).forEach(item=>{
-    const col=item.mat||item.nome;
-    if(col)colaboradores[col]=true;
-    const dias=Number(item.dias||0);
-    diasPerdidos+=dias;
-    const cid=String(item.cid||"").toUpperCase().replace(/\s+/g,"").trim();
-    if(!cid){ semCid++; }
-    if(cid){
-      const fam=familiaCidJS(cid);
-      if(fam==="F") cidF++;
-      if(fam==="M") cidM++;
-      addGrupoJS(cids,cid,1);
-      addGrupoJS(familiasComCid,fam,1);
-      if(!detalheFamiliaCid[fam]) detalheFamiliaCid[fam]={};
-      addGrupoJS(detalheFamiliaCid[fam],cid,1);
-    }
-    addGrupoJS(setores,item.setor,1);
-    addGrupoJS(duracao,classificarDuracaoAf(dias),1);
-    const mes=Number(item.mes||0);
-    if(mes) addGrupoJS(mesesQtd,mes,1);
-  });
-
-  const familiasArr=toArrayJS(familiasComCid).map(fam=>{
-    const detalhe=toArrayJS(detalheFamiliaCid[fam.nome]||{});
-    return Object.assign({}, fam, {
-      descricao: descricaoFamiliaPat41(fam.nome),
-      cids: detalhe,
-      tooltip: "Família "+fam.nome+" - "+descricaoFamiliaPat41(fam.nome)+
-        "\nAfastamentos: "+fmt(fam.quantidade)+
-        "\n\nCIDs da família:\n"+detalhe.slice(0,12).map(i=>i.nome+" - "+descricaoCidAfastamento(i.nome)+": "+fmt(i.quantidade)).join("\n")
-    });
-  });
-
-  const patologiasAfastamentos=montarPatologiasXAfastamentosAf(familiasArr);
-
-  return {
-    totalAfastamentos:lista.length,
-    colaboradoresAfastados:Object.keys(colaboradores).length,
-    diasPerdidos,
-    mediaDias:lista.length?diasPerdidos/lista.length:0,
-    semCid,
-    cidF,
-    cidM,
-    topCids:toArrayJS(cids).slice(0,10),
-    familiasComCid:agruparTopComOutras(familiasArr,10),
-    setores:toArrayJS(setores).slice(0,15),
-    mesesQtd:arrayMesesJS(mesesQtd),
-    duracao:montarArrayDuracaoAf(duracao),
-    patologiasAfastamentos
-  };
+function renderPatologias() {
+  const data = APP.dataCache.patologias || {};
+  if (!document.getElementById("patologiasFiltros")) return;
+  if (!document.getElementById("patologias_setor_btn")) renderFiltros("patologias", data, {});
+  const rows = filtroComum("patologias", data.registros || []);
+  const withPat = rows.filter(r => (r.cids || []).length).length;
+  setHtml("patologiasCards", [
+    kpi("👥", "Colaboradores", rows.length, "Filtro atual"),
+    kpi("CID", "Com patologias", withPat, rows.length - withPat + " sem patologias"),
+    kpi("Σ", "Total de CIDs", sum(rows, r => (r.cids || []).length), "Registros CID"),
+    kpi("⚕", "Famílias CID", grupoCids(rows, "familiasCid").length, "Famílias distintas")
+  ].join(""));
+  renderBars("patologiasFamilias", grupoCids(rows, "familiasCid"), 12);
+  renderBars("patologiasTopCids", grupoCids(rows, "cids"), 10);
+  renderBars("patologiasSetor", group(rows.filter(r => r.cids.length), "setor"), 12);
+  renderBars("patologiasFuncao", group(rows.filter(r => r.cids.length), "funcao"), 12);
+  renderTable("patologiasTabela", "patologias", rows, [
+    ["mat", "Matrícula"], ["nome", "Nome"], ["status", "Status"], ["sexo", "Sexo"], ["idade", "Idade"], ["setor", "Setor"], ["funcao", "Função"], ["cids", "CIDs"]
+  ]);
 }
 
-function classificarDuracaoAf(dias){
-  const d=Number(dias||0);
-  if(d<=3)return "1 a 3 dias";
-  if(d<=7)return "4 a 7 dias";
-  if(d<=15)return "8 a 15 dias";
-  if(d<=30)return "16 a 30 dias";
-  return "> 30 dias";
+function renderAfastamentos() {
+  const data = APP.dataCache.afastamentos || {};
+  if (!document.getElementById("afastamentosFiltros")) return;
+  if (!document.getElementById("afastamentos_setor_btn")) renderFiltros("afastamentos", data, { anos: data.anos || [] });
+  const rows = filtroComum("afastamentos", data.registros || []);
+  const keys = distinct(rows, "key");
+  const comCid = rows.filter(r => r.cid).length;
+  const fam = group(rows.filter(r => r.familiaCid), "familiaCid");
+  setHtml("afastamentosCards", [
+    kpi("▣", "Total de afastamentos", rows.length, "Eventos filtrados"),
+    kpi("👥", "Colaboradores afastados", keys.length, "Distintos"),
+    kpi("▦", "Dias perdidos", sum(rows, r => r.dias), "Soma de QTD"),
+    kpi("Ø", "Média de dias", media(sum(rows, r => r.dias), rows.length), "Por afastamento"),
+    kpi("CID", "Com CID", comCid, (rows.length - comCid) + " sem CID"),
+    kpi("F", "CID F", rows.filter(r => r.familiaCid === "F").length, "Mentais/comportamentais"),
+    kpi("M", "CID M", rows.filter(r => r.familiaCid === "M").length, "Osteomusculares"),
+    kpi("★", "Maior família CID", fam[0] ? fam[0].nome : "-", fam[0] ? fam[0].quantidade + " eventos" : "-")
+  ].join(""));
+  renderBars("afastamentosMes", meses(rows), 12);
+  renderBars("afastamentosFamilias", fam.map(f => ({ nome: f.nome + " - " + descricaoCid(f.nome), quantidade: f.quantidade })), 12);
+  renderBars("afastamentosSetor", group(rows, "setor"), 12);
+  renderBars("afastamentosTopCids", group(rows.filter(r => r.cid), "cid"), 10);
 }
 
-function montarArrayDuracaoAf(grupo){
-  const ordem=["1 a 3 dias","4 a 7 dias","8 a 15 dias","16 a 30 dias","> 30 dias"];
-  return ordem.map(nome=>({nome,quantidade:grupo[nome]||0}));
+function renderVacinas() {
+  const data = APP.dataCache.vacinas || {};
+  if (!document.getElementById("vacinasFiltros")) return;
+  const situacoes = Array.from(new Set((data.registros || []).map(r => r.situacaoVacinal).filter(Boolean))).sort();
+  if (!document.getElementById("vacinas_setor_btn")) renderFiltros("vacinas", data, { situacoes });
+  const rows = filtroComum("vacinas", data.registros || []);
+  const pend = rows.filter(r => (r.pendencias || []).length);
+  setHtml("vacinasCards", [
+    kpi("VC", "Cobertura geral", pct(rows.filter(r => r.completoGeral).length, rows.length), rows.filter(r => r.completoGeral).length + " de " + rows.length),
+    kpi("OK", "Completos", rows.filter(r => r.completoGeral).length, "Colaboradores"),
+    kpi("!", "Pendentes", pend.length, "Com ao menos uma pendência"),
+    kpi("dT", "dT atualizada", pct(rows.filter(r => r.vacinas.dt && r.vacinas.dt.completa).length, rows.length), "Por esquema dT"),
+    kpi("HB", "Hepatite B", pct(rows.filter(r => r.vacinas.hepB && r.vacinas.hepB.completa).length, rows.length), "Por situação Hep B"),
+    kpi("CV", "COVID", pct(rows.filter(r => r.vacinas.covid && r.vacinas.covid.completa).length, rows.length), "Por situação COVID")
+  ].join(""));
+  renderBars("vacinasPendencias", grupoPendenciasVac(rows), 10);
+  renderBars("vacinasSetor", group(pend, "setor"), 12);
+  renderBars("vacinasFuncao", group(pend, "funcao"), 12);
+  renderBars("vacinasSexo", group(rows.filter(r => r.completoGeral), "sexo"), 8);
+  renderTable("vacinasTabela", "vacinas", pend, [
+    ["mat", "Matrícula"], ["nome", "Nome"], ["status", "Status"], ["setor", "Setor"], ["funcao", "Função"], ["sexo", "Sexo"], ["pendencias", "Pendências"], ["situacaoVacinal", "Situação geral"]
+  ]);
 }
 
-function agruparTopComOutras(lista,limite){
-  const arr=(lista||[]).slice().sort((a,b)=>b.quantidade-a.quantidade);
-  if(arr.length<=limite)return arr;
-  const top=arr.slice(0,limite-1);
-  const outras=arr.slice(limite-1);
-  const totalOutras=outras.reduce((s,i)=>s+Number(i.quantidade||0),0);
-  const detalhes=[];
-  outras.forEach(f=>detalhes.push({nome:f.nome,quantidade:f.quantidade}));
-  top.push({nome:"Outras",quantidade:totalOutras,descricao:"Demais famílias CID",cids:detalhes,tooltip:"Outras famílias CID\nAfastamentos: "+fmt(totalOutras)+"\n\n"+detalhes.map(i=>i.nome+": "+fmt(i.quantidade)).join("\n")});
-  return top;
-}
-
-function montarPatologiasXAfastamentosAf(familiasAf){
-  const setores=selecionadosAf("setor"), funcoes=selecionadosAf("funcao"), sexo=document.getElementById("afFiltroSexo")?.value||"";
-  const patologias=(AF50_DADOS.patologiasComparativo||[]).filter(item=>{
-    if(setores.length&&setores.indexOf(item.setor)===-1)return false;
-    if(funcoes.length&&funcoes.indexOf(item.funcao)===-1)return false;
-    if(sexo&&item.sexo!==sexo)return false;
-    return true;
-  });
-
-  const patFam={}, afFam={};
-  patologias.forEach(item=>(item.cids||[]).forEach(cid=>{const f=familiaCidJS(cid); if(f)addGrupoJS(patFam,f,1);}));
-  (familiasAf||[]).forEach(f=>{if(f.nome&&f.nome!=="Outras")afFam[f.nome]=Number(f.quantidade||0);});
-
-  const chaves={};
-  Object.keys(patFam).forEach(k=>chaves[k]=true);
-  Object.keys(afFam).forEach(k=>chaves[k]=true);
-  return Object.keys(chaves).map(f=>({nome:f,descricao:descricaoFamiliaPat41(f),patologias:patFam[f]||0,afastamentos:afFam[f]||0}))
-    .sort((a,b)=>(b.patologias+b.afastamentos)-(a.patologias+a.afastamentos)).slice(0,10);
-}
-
-function arrayMesesJS(grupo){
-  const nomes=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  return nomes.map((n,i)=>({nome:n,quantidade:grupo[i+1]||0}));
-}
-
-function desenharFamiliasAfastamentosHTML(id,dados){
-  const el=document.getElementById(id);
-  if(!el)return;
-  if(!dados||!dados.length){el.innerHTML="<div class='placeholder'>Sem dados</div>";return;}
-  const max=Math.max(...dados.map(i=>Number(i.quantidade||0)),1);
-  el.innerHTML='<div class="bar-list">'+dados.map(item=>{
-    const w=Math.max((Number(item.quantidade||0)/max)*100,4);
-    const tooltip=item.tooltip || ('Família '+item.nome+' - '+(item.descricao||descricaoFamiliaPat41(item.nome))+'\nAfastamentos: '+fmt(item.quantidade));
-    const label='<span class="af-family-code">'+esc(item.nome)+'</span><span class="af-family-desc">'+esc(item.descricao||descricaoFamiliaPat41(item.nome))+'</span>';
-    return '<div class="bar-row" data-tooltip="'+escAttr(tooltip)+'">'+
-      '<div class="bar-label">'+label+'</div>'+
-      '<div class="bar-track"><div class="bar-fill" style="width:'+w+'%"></div></div>'+
-      '<div class="bar-value">'+fmt(item.quantidade)+'</div>'+
-    '</div>';
-  }).join('')+'</div>';
-  ativarTooltipPat41();
-}
-
-function desenharPatologiasXAfastamentosAf(id,dados){
-  const el=document.getElementById(id);
-  if(!el)return;
-  if(!dados||!dados.length){el.innerHTML="<div class='placeholder'>Sem dados</div>";return;}
-  const maxPat=Math.max(...dados.map(i=>Number(i.patologias||0)),1);
-  const maxAf=Math.max(...dados.map(i=>Number(i.afastamentos||0)),1);
-  el.innerHTML='<div class="af-legend"><span><i class="af-dot"></i>Patologias</span><span><i class="af-dot af-green"></i>Afastamentos</span></div>'+dados.map(item=>{
-    const wp=Math.max((Number(item.patologias||0)/maxPat)*100,3);
-    const wa=Math.max((Number(item.afastamentos||0)/maxAf)*100,3);
-    const tooltip='Família '+item.nome+' - '+item.descricao+'\nPatologias: '+fmt(item.patologias)+'\nAfastamentos: '+fmt(item.afastamentos);
-    return '<div class="af-pat-row" data-tooltip="'+escAttr(tooltip)+'">'+
-      '<div class="af-pat-label">'+esc(item.nome)+' — '+esc(item.descricao)+'</div>'+
-      '<div class="af-pat-track"><div class="af-pat-fill" style="width:'+wp+'%"></div></div><div class="af-pat-value">'+fmt(item.patologias)+'</div>'+
-      '<div class="af-pat-track"><div class="af-pat-fill af-pat-afast" style="width:'+wa+'%"></div></div><div class="af-pat-value">'+fmt(item.afastamentos)+'</div>'+
-    '</div>';
-  }).join('');
-  ativarTooltipPat41();
-}
-
-function descricaoCidAfastamento(cid){
-  const mapa={
-    "A09":"Diarreia e gastroenterite de origem infecciosa presumível",
-    "J11":"Influenza devido a vírus não identificado",
-    "M54.5":"Dor lombar baixa",
-    "B34.9":"Infecção viral não especificada",
-    "J06.9":"Infecção aguda das vias aéreas superiores não especificada",
-    "J00":"Nasofaringite aguda (resfriado comum)",
-    "M54":"Dorsalgia",
-    "F41":"Outros transtornos ansiosos",
-    "G43":"Enxaqueca",
-    "J02":"Faringite aguda",
-    "J03":"Amigdalite aguda",
-    "J45":"Asma",
-    "M25":"Outros transtornos articulares",
-    "M75":"Lesões do ombro",
-    "R51":"Cefaleia"
-  };
-  const codigo=String(cid||"").toUpperCase().trim();
-  if(mapa[codigo]) return mapa[codigo];
-  const semPonto=codigo.replace(/\.[0-9A-Z]+$/,".");
-  const base=codigo.replace(/\.[0-9A-Z]+$/,"");
-  if(mapa[base]) return mapa[base];
-  return descricaoCidPat41(codigo);
-}
-
-
-/* VACINAS - MÓDULO V5.5 */
-let VAC_DADOS = { registros: [], filtros: { setores: [], funcoes: [], sexos: [], status: [], situacoes: [] } };
-let VAC_FILTRADOS = [];
-let VAC_TABELA_BASE = [];
-let VAC_TABELA_ORDENACAO = { campo: "nome", direcao: "asc" };
-
-function carregarDadosVacinas(forcarAtualizacao) {
-  if (dadosVacinas && !forcarAtualizacao) {
-    VAC_DADOS = dadosVacinas;
-    esconderLoading();
-    prepararVacinas();
-    return;
-  }
-
-  mostrarLoading("Carregando Vacinas...");
-  google.script.run
-    .withSuccessHandler(function(ret) {
-      dadosVacinas = ret || {};
-      VAC_DADOS = dadosVacinas;
-      esconderLoading();
-      prepararVacinas();
-    })
-    .withFailureHandler(erroPortal)
-    .carregarVacinas();
-}
-
-function prepararVacinas() {
-  const d = VAC_DADOS || {};
-  document.getElementById("atualizadoEm").textContent = "Atualizado em " + (d.atualizadoEm || "");
-  const registros = d.registros || [];
-
-  montarOpcoesVac("setor", (d.filtros || {}).setores || Array.from(new Set(registros.map(i => i.setor).filter(Boolean))).sort());
-  montarOpcoesVac("funcao", (d.filtros || {}).funcoes || Array.from(new Set(registros.map(i => i.funcao).filter(Boolean))).sort());
-  preencherSelect("vacFiltroSexo", (d.filtros || {}).sexos || Array.from(new Set(registros.map(i => i.sexo).filter(Boolean))).sort(), "Todos");
-  preencherSelect("vacFiltroSituacao", (d.filtros || {}).situacoes || ["Completo", "Incompleto"], "Todas");
-
-  aplicarFiltrosVacinas();
-}
-
-function montarOpcoesVac(tipo, lista) {
-  const alvo = document.getElementById(tipo === "setor" ? "vacOpcoesSetor" : "vacOpcoesFuncao");
-  if (!alvo) return;
-  alvo.innerHTML = (lista || []).map(v =>
-    '<label class="check-row" data-text="' + escAttr(normalizarTextoJS(v)) + '">' +
-      '<input type="checkbox" value="' + escAttr(v) + '" onchange="aplicarFiltrosVacinas()">' +
-      '<span>' + esc(v) + '</span>' +
-    '</label>'
-  ).join("");
-}
-
-function toggleMultiVac(tipo) {
-  if (tipo === "status") { toggleFiltroStatus("vac"); return; }
-  const atual = document.getElementById(tipo === "setor" ? "vacPanelSetor" : "vacPanelFuncao");
-  const outro = document.getElementById(tipo === "setor" ? "vacPanelFuncao" : "vacPanelSetor");
-  const status = document.getElementById("vacPanelStatus");
-  if (outro) outro.classList.remove("open");
-  if (status) status.classList.remove("open");
-  if (atual) atual.classList.toggle("open");
-}
-
-function selecionarTodosVac(tipo, marcar) {
-  if (tipo === "status") { selecionarTodosStatus("vac", marcar, aplicarFiltrosVacinas); return; }
-  const painel = document.getElementById(tipo === "setor" ? "vacPanelSetor" : "vacPanelFuncao");
-  if (!painel) return;
-  painel.querySelectorAll("label.check-row").forEach(row => {
-    if (row.style.display !== "none") {
-      const input = row.querySelector("input[type='checkbox']");
-      if (input) input.checked = !!marcar;
-    }
-  });
-  aplicarFiltrosVacinas();
-}
-
-function filtrarOpcoesVac(tipo) {
-  if (tipo === "status") { filtrarFiltroStatus("vac"); return; }
-  const buscaId = tipo === "setor" ? "vacBuscaSetor" : "vacBuscaFuncao";
-  const painelId = tipo === "setor" ? "vacPanelSetor" : "vacPanelFuncao";
-  const busca = normalizarTextoJS(document.getElementById(buscaId)?.value || "");
-  const painel = document.getElementById(painelId);
-  if (!painel) return;
-  painel.querySelectorAll("label.check-row").forEach(row => {
-    const texto = row.getAttribute("data-text") || normalizarTextoJS(row.textContent || "");
-    row.style.display = !busca || texto.indexOf(busca) !== -1 ? "flex" : "none";
-  });
-}
-
-function selecionadosVac(tipo) {
-  const painel = document.getElementById(tipo === "setor" ? "vacPanelSetor" : "vacPanelFuncao");
-  if (!painel) return [];
-  return Array.from(painel.querySelectorAll("input[type='checkbox']:checked")).map(c => c.value);
-}
-
-function atualizarBotoesVac() {
-  const setores = selecionadosVac("setor");
-  const funcoes = selecionadosVac("funcao");
-  const btnSetor = document.querySelector("#vacBtnSetor span");
-  const btnFuncao = document.querySelector("#vacBtnFuncao span");
-  if (btnSetor) btnSetor.textContent = setores.length === 0 ? "Todos" : (setores.length === 1 ? setores[0] : setores.length + " selecionados");
-  if (btnFuncao) btnFuncao.textContent = funcoes.length === 0 ? "Todas" : (funcoes.length === 1 ? funcoes[0] : funcoes.length + " selecionadas");
-  atualizarBotaoStatus("vac");
-}
-
-function limparFiltrosVacinas() {
-  ["vacPanelSetor", "vacPanelFuncao", "vacPanelStatus"].forEach(id => {
-    const painel = document.getElementById(id);
-    if (!painel) return;
-    painel.querySelectorAll("input[type='checkbox']").forEach(c => c.checked = false);
-    painel.querySelectorAll("label.check-row").forEach(row => row.style.display = "flex");
-  });
-  setTextValue("vacBuscaSetor", "");
-  setTextValue("vacBuscaFuncao", "");
-  setTextValue("vacBuscaStatus", "");
-  setTextValue("vacFiltroSexo", "");
-  setTextValue("vacFiltroSituacao", "");
-  setTextValue("vacBuscaTabela", "");
-  resetarFiltroStatus("vac");
-  aplicarFiltrosVacinas();
-}
-
-function selecionarStatusPadraoVac() {
-  resetarFiltroStatus("vac");
-  aplicarFiltrosVacinas();
-}
-
-function aplicarFiltrosVacinas() {
-  const setores = selecionadosVac("setor");
-  const funcoes = selecionadosVac("funcao");
-  const sexo = document.getElementById("vacFiltroSexo")?.value || "";
-  const situacao = document.getElementById("vacFiltroSituacao")?.value || "";
-  const status = statusSelecionados("vac");
-
-  VAC_FILTRADOS = (VAC_DADOS.registros || []).filter(item => {
-    if (setores.length && setores.indexOf(item.setor) === -1) return false;
-    if (funcoes.length && funcoes.indexOf(item.funcao) === -1) return false;
-    if (sexo && item.sexo !== sexo) return false;
-    if (status.indexOf(item.status) === -1) return false;
-    if (situacao && item.esquemaCompleto !== situacao) return false;
-    return true;
-  });
-
-  VAC_TABELA_BASE = VAC_FILTRADOS.filter(item => item.esquemaCompleto !== "Completo" || item.dtCompleta !== "Completa" || item.hepCompleta !== "Completa" || item.covidCompleta !== "Completa");
-  atualizarBotoesVac();
-  renderizarResumoVacinas(VAC_FILTRADOS);
-  renderizarTabelaVacinas();
-}
-
-function renderizarResumoVacinas(lista) {
-  const registros = lista || [];
-  const total = registros.length;
-  const completos = registros.filter(i => i.esquemaCompleto === "Completo").length;
-  const incompletos = total - completos;
-  const dtAtualizadas = registros.filter(i => i.dtCompleta === "Completa").length;
-  const hepAtualizadas = registros.filter(i => i.hepCompleta === "Completa").length;
-  const covidAtualizadas = registros.filter(i => i.covidCompleta === "Completa").length;
-
-  const coberturas = [
-    { nome: "dT", atualizada: dtAtualizadas, pendente: Math.max(total - dtAtualizadas, 0), percentual: total ? dtAtualizadas / total * 100 : 0 },
-    { nome: "Hepatite B", atualizada: hepAtualizadas, pendente: Math.max(total - hepAtualizadas, 0), percentual: total ? hepAtualizadas / total * 100 : 0 },
-    { nome: "COVID", atualizada: covidAtualizadas, pendente: Math.max(total - covidAtualizadas, 0), percentual: total ? covidAtualizadas / total * 100 : 0 }
-  ];
-  const menor = coberturas.slice().sort((a, b) => a.percentual - b.percentual)[0] || { nome: "-", percentual: 0 };
-  const aplicadasAno = agruparVacinasAno(registros);
-  const anoAtual = new Date().getFullYear();
-  const aplicadasAnoAtual = aplicadasAno.find(i => Number(i.ano) === Number(anoAtual)) || { dt: 0, hep: 0, total: 0 };
-
-  setText("vacCardCobertura", pct(total ? completos / total * 100 : 0));
-  setText("vacCardCoberturaSub", fmt(completos) + " de " + fmt(total) + " colaboradores");
-  setText("vacCardCompleto", fmt(completos));
-  setText("vacCardIncompleto", fmt(incompletos));
-  setText("vacCardDt", pct(total ? dtAtualizadas / total * 100 : 0));
-  setText("vacCardHep", pct(total ? hepAtualizadas / total * 100 : 0));
-  setText("vacCardCovid", pct(total ? covidAtualizadas / total * 100 : 0));
-  setText("vacCardMenor", menor.nome);
-  setText("vacCardMenorSub", pct(menor.percentual) + " de cobertura");
-  setText("vacCardAplicadas", fmt(aplicadasAnoAtual.total));
-  setText("vacCardAplicadasSub", "dT: " + fmt(aplicadasAnoAtual.dt) + " | Hep B: " + fmt(aplicadasAnoAtual.hep));
-
-  desenharPendenciasSetorVac("chartVacPendenciasSetor", pendenciasVacinasPorCampoDetalhado(registros, "setor"));
-  desenharBarrasHTML("chartVacPendenciasFuncao", pendenciasVacinasPorCampo(registros, "funcao"), item => item.nome + "\nPendências: " + fmt(item.quantidade));
-  desenharPizza("chartVacCoberturaSexo", coberturaVacinasPorSexo(registros), "Colaboradores completos");
-  desenharAplicadasMesVac("chartVacAplicadasMes", agruparVacinasMes(registros));
-}
-
-function pendenciasVacinasPorCampo(registros, campo) {
-  const grupo = {};
-  (registros || []).forEach(item => {
-    const qtd = (item.dtCompleta === "Completa" ? 0 : 1) + (item.hepCompleta === "Completa" ? 0 : 1) + (item.covidCompleta === "Completa" ? 0 : 1);
-    if (qtd > 0) addGrupoJS(grupo, item[campo], qtd);
-  });
-  return toArrayJS(grupo).slice(0, 15);
-}
-
-
-function pendenciasVacinasPorCampoDetalhado(registros, campo) {
-  const grupo = {};
-  (registros || []).forEach(item => {
-    const nome = item[campo] || "Não informado";
-    if (!grupo[nome]) grupo[nome] = { nome: nome, quantidade: 0, dt: 0, hep: 0, covid: 0, colaboradores: 0, completos: 0 };
-
-    grupo[nome].colaboradores++;
-    if (item.esquemaCompleto === "Completo") grupo[nome].completos++;
-
-    if (item.dtCompleta !== "Completa") { grupo[nome].dt++; grupo[nome].quantidade++; }
-    if (item.hepCompleta !== "Completa") { grupo[nome].hep++; grupo[nome].quantidade++; }
-    if (item.covidCompleta !== "Completa") { grupo[nome].covid++; grupo[nome].quantidade++; }
-  });
-
-  return Object.keys(grupo)
-    .map(k => grupo[k])
-    .filter(i => i.quantidade > 0)
-    .sort((a, b) => b.quantidade - a.quantidade)
-    .slice(0, 15);
-}
-
-function desenharPendenciasSetorVac(id, dados) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  if (!dados || !dados.length) {
-    el.innerHTML = "<div class='placeholder'>Sem dados</div>";
-    return;
-  }
-
-  const max = Math.max(...dados.map(i => Number(i.quantidade || 0)), 1);
-  el.innerHTML = '<div class="bar-list">' + dados.map(item => {
-    const largura = Math.max((Number(item.quantidade || 0) / max) * 100, 4);
-    const cobertura = item.colaboradores ? (item.completos / item.colaboradores) * 100 : 0;
-    const tooltip = item.nome +
-      '\n\nPendências totais: ' + fmt(item.quantidade) +
-      '\n\ndT: ' + fmt(item.dt) +
-      '\nHepatite B: ' + fmt(item.hep) +
-      '\nCOVID: ' + fmt(item.covid) +
-      '\n\nColaboradores analisados: ' + fmt(item.colaboradores) +
-      '\nCobertura no setor: ' + pct(cobertura);
-
-    return '<div class="bar-row" data-tooltip="' + escAttr(tooltip) + '">' +
-      '<div class="bar-label">' + esc(item.nome) + '</div>' +
-      '<div class="bar-track"><div class="bar-fill" style="width:' + largura + '%"></div></div>' +
-      '<div class="bar-value">' + fmt(item.quantidade) + '</div>' +
-    '</div>';
-  }).join('') + '</div>';
-
-  ativarTooltip('vacTooltip', '#chartVacPendenciasSetor .bar-row[data-tooltip]');
-}
-
-function coberturaVacinasPorSexo(registros) {
-  const grupo = {};
-  (registros || []).forEach(item => {
-    if (item.esquemaCompleto === "Completo") addGrupoJS(grupo, item.sexo || "Não informado", 1);
-  });
-  return toArrayJS(grupo);
-}
-
-function agruparVacinasMes(registros) {
-  const anoAtual = new Date().getFullYear();
-  const nomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-  const mapa = {};
-  for (let m = 1; m <= 12; m++) mapa[m] = { nome: nomes[m - 1], mes: m, dt: 0, hep: 0, total: 0 };
-  (registros || []).forEach(item => {
-    (item.dtDatas || []).forEach(data => incVacMes(mapa, data, "dt", anoAtual));
-    (item.hepDatas || []).forEach(data => incVacMes(mapa, data, "hep", anoAtual));
-  });
-  return Object.keys(mapa).map(m => mapa[m]);
-}
-
-function agruparVacinasAno(registros) {
-  const mapa = {};
-  (registros || []).forEach(item => {
-    (item.dtDatas || []).forEach(data => incVacAno(mapa, data, "dt"));
-    (item.hepDatas || []).forEach(data => incVacAno(mapa, data, "hep"));
-  });
-  return Object.keys(mapa).sort((a,b)=>Number(a)-Number(b)).map(ano => mapa[ano]);
-}
-
-function incVacMes(mapa, data, tipo, anoFiltro) {
-  const p = String(data || "").split("-");
-  if (p.length < 2) return;
-  const ano = Number(p[0]), mes = Number(p[1]);
-  if (ano !== anoFiltro || !mapa[mes]) return;
-  mapa[mes][tipo]++; mapa[mes].total++;
-}
-function incVacAno(mapa, data, tipo) {
-  const p = String(data || "").split("-");
-  if (!p[0]) return;
-  const ano = p[0];
-  if (!mapa[ano]) mapa[ano] = { nome: ano, ano: Number(ano), dt: 0, hep: 0, total: 0 };
-  mapa[ano][tipo]++; mapa[ano].total++;
-}
-
-function desenharCoberturaVacina(id, dados) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  if (!dados || !dados.length) { el.innerHTML = "<div class='placeholder'>Sem dados</div>"; return; }
-  el.innerHTML = '<div class="vac-cob-list">' + dados.map(item => {
-    const p = Math.max(Number(item.percentual || 0), 2);
-    return '<div class="vac-cob-row"><div><strong>' + esc(item.nome) + '</strong><small>' + fmt(item.atualizada) + ' atualizados | ' + fmt(item.pendente) + ' pendentes</small></div><div class="vac-cob-track"><div class="vac-cob-fill" style="width:' + p + '%"></div></div><b>' + pct(item.percentual) + '</b></div>';
-  }).join('') + '</div>';
-}
-
-function desenharAplicadasMesVac(id, dados) {
-  const el = document.getElementById(id); if (!el) return;
-  if (!dados || !dados.length) { el.innerHTML = "<div class='placeholder'>Sem dados</div>"; return; }
-  const max = Math.max(...dados.map(i => Math.max(Number(i.dt||0), Number(i.hep||0))), 1);
-  el.innerHTML = '<div class="vac-legend"><span><i></i>dT</span><span><i class="hep"></i>Hepatite B</span></div><div class="vac-group-chart">' + dados.map(item => {
-    const hdt = Math.max((Number(item.dt||0)/max)*100, item.dt ? 4 : 0);
-    const hhep = Math.max((Number(item.hep||0)/max)*100, item.hep ? 4 : 0);
-    const tooltip = item.nome + '\ndT: ' + fmt(item.dt) + '\nHepatite B: ' + fmt(item.hep) + '\nTotal: ' + fmt(item.total);
-    return '<div class="vac-month" data-tooltip="' + escAttr(tooltip) + '"><div class="vac-bars"><div class="vacbar dt" style="height:' + hdt + '%"></div><div class="vacbar hep" style="height:' + hhep + '%"></div></div><small>' + esc(item.nome) + '</small></div>';
-  }).join('') + '</div>';
-  ativarTooltip('vacTooltip', '#page-vacinas .vac-month[data-tooltip]');
-}
-
-function desenharAplicadasAnoVac(id, dados) {
-  const el = document.getElementById(id); if (!el) return;
-  if (!dados || !dados.length) { el.innerHTML = "<div class='placeholder'>Sem dados</div>"; return; }
-  const max = Math.max(...dados.map(i => Math.max(Number(i.dt||0), Number(i.hep||0))), 1);
-  el.innerHTML = '<div class="vac-legend"><span><i></i>dT</span><span><i class="hep"></i>Hepatite B</span></div><div class="vac-year-list">' + dados.map(item => {
-    const wdt = Math.max((Number(item.dt||0)/max)*100, item.dt ? 4 : 0);
-    const whep = Math.max((Number(item.hep||0)/max)*100, item.hep ? 4 : 0);
-    return '<div class="vac-year-row"><div class="bar-label">' + esc(item.nome) + '</div><div class="bar-track"><div class="bar-fill" style="width:' + wdt + '%"></div></div><div class="bar-value">' + fmt(item.dt) + '</div><div class="bar-track"><div class="bar-fill hep" style="width:' + whep + '%"></div></div><div class="bar-value">' + fmt(item.hep) + '</div></div>';
-  }).join('') + '</div>';
-}
-
-function toggleTabelaVacinas() {
-  const area = document.getElementById("vacAreaTabela");
-  const btn = document.getElementById("vacBtnTabela");
-  if (!area || !btn) return;
-  const aberta = area.classList.toggle("aberta");
-  btn.textContent = aberta ? "Ocultar pendências vacinais" : "Consultar pendências vacinais";
-}
-
-function limparPesquisaVacinas() {
-  setTextValue("vacBuscaTabela", "");
-  renderizarTabelaVacinas();
-}
-
-function renderizarTabelaVacinas() {
-  const busca = normalizarTextoJS(document.getElementById("vacBuscaTabela")?.value || "");
-  const lista = (VAC_TABELA_BASE || []).filter(item => {
-    if (!busca) return true;
-    const texto = normalizarTextoJS([item.mat,item.nome,item.setor,item.funcao,item.sexo,item.esquemaCompleto,item.dtCompleta,item.hepCompleta,item.covidCompleta].join(" "));
-    return texto.indexOf(busca) !== -1;
-  });
-  const tbody = document.querySelector("#vacTblPendencias tbody");
-  if (!tbody) return;
-  tbody.innerHTML = lista.slice(0,500).map(item => '<tr><td>'+esc(item.mat)+'</td><td>'+esc(item.nome)+'</td><td>'+esc(item.setor)+'</td><td>'+esc(item.funcao)+'</td><td>'+esc(item.sexo)+'</td><td>'+esc(item.dtCompleta)+'</td><td>'+esc(item.hepCompleta)+'</td><td>'+esc(item.covidCompleta)+'</td><td>'+esc(item.esquemaCompleto)+'</td></tr>').join('');
-  setText("vacTabelaResumo", "Exibindo " + Math.min(lista.length,500) + " de " + lista.length + " colaboradores com pendência vacinal.");
-}
-
-
-
-/* VACINAS - AJUSTES V5.7 */
-function prepararVacinas() {
-  const d = VAC_DADOS || {};
-  document.getElementById("atualizadoEm").textContent = "Atualizado em " + (d.atualizadoEm || "");
-  const registros = d.registros || [];
-
-  montarOpcoesVac("setor", (d.filtros || {}).setores || Array.from(new Set(registros.map(i => i.setor).filter(Boolean))).sort());
-  montarOpcoesVac("funcao", (d.filtros || {}).funcoes || Array.from(new Set(registros.map(i => i.funcao).filter(Boolean))).sort());
-  preencherSelect("vacFiltroSexo", (d.filtros || {}).sexos || Array.from(new Set(registros.map(i => i.sexo).filter(Boolean))).sort(), "Todos");
-  preencherSelect("vacFiltroSituacao", (d.filtros || {}).situacoes || ["Completo", "Incompleto"], "Todas");
-  montarFiltroStatus("vac", (d.filtros || {}).status || Array.from(new Set(registros.map(i => i.status).filter(Boolean))).sort(), "aplicarFiltrosVacinas");
-
-  configurarPeriodoDtVacinas();
-  aplicarFiltrosVacinas();
-}
-
-function configurarPeriodoDtVacinas() {
-  const ini = document.getElementById("vacDtInicio");
-  const fim = document.getElementById("vacDtFim");
-  if (!ini || !fim || ini.value || fim.value) return;
-  const hoje = new Date();
-  const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-  const ultimo = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
-  ini.value = dataIsoLocal(primeiro);
-  fim.value = dataIsoLocal(ultimo);
-}
-
-function dataIsoLocal(data) {
-  const y = data.getFullYear();
-  const m = String(data.getMonth() + 1).padStart(2, "0");
-  const d = String(data.getDate()).padStart(2, "0");
-  return y + "-" + m + "-" + d;
-}
-
-function possuiPendenciaVacinal(item) {
-  return item.esquemaCompleto !== "Completo" ||
-    item.dtCompleta !== "Completa" ||
-    item.hepCompleta !== "Completa" ||
-    item.covidCompleta !== "Completa";
-}
-
-function aplicarFiltrosVacinas() {
-  const setores = selecionadosVac("setor");
-  const funcoes = selecionadosVac("funcao");
-  const sexo = document.getElementById("vacFiltroSexo")?.value || "";
-  const situacao = document.getElementById("vacFiltroSituacao")?.value || "";
-  const status = statusSelecionados("vac");
-
-  VAC_FILTRADOS = (VAC_DADOS.registros || []).filter(item => {
-    if (setores.length && setores.indexOf(item.setor) === -1) return false;
-    if (funcoes.length && funcoes.indexOf(item.funcao) === -1) return false;
-    if (sexo && item.sexo !== sexo) return false;
-    if (status.indexOf(item.status) === -1) return false;
-    if (situacao && item.esquemaCompleto !== situacao) return false;
-    return true;
-  });
-
-  // Pendência vacinal operacional = qualquer vacina monitorada pendente.
-  VAC_TABELA_BASE = VAC_FILTRADOS.filter(possuiPendenciaVacinal);
-  atualizarBotoesVac();
-  renderizarResumoVacinas(VAC_FILTRADOS);
-  renderizarTabelaVacinas();
-  renderizarDtAtualizarVacinas();
-}
-
-function renderizarResumoVacinas(lista) {
-  const registros = lista || [];
-  const total = registros.length;
-
-  // Regra auditável:
-  // - Situação vacinal geral: coluna D da BD VACINAS.
-  // - dT: coluna K.
-  // - Hepatite B: coluna R.
-  // - COVID: coluna AA.
-  const completos = registros.filter(i => i.esquemaCompleto === "Completo").length;
-  const incompletos = registros.filter(i => i.esquemaCompleto !== "Completo").length;
-  const dtAtualizadas = registros.filter(i => i.dtCompleta === "Completa").length;
-  const hepAtualizadas = registros.filter(i => i.hepCompleta === "Completa").length;
-  const covidAtualizadas = registros.filter(i => i.covidCompleta === "Completa").length;
-
-  const coberturas = [
-    { nome: "dT", atualizada: dtAtualizadas, pendente: Math.max(total - dtAtualizadas, 0), percentual: total ? dtAtualizadas / total * 100 : 0 },
-    { nome: "Hepatite B", atualizada: hepAtualizadas, pendente: Math.max(total - hepAtualizadas, 0), percentual: total ? hepAtualizadas / total * 100 : 0 },
-    { nome: "COVID", atualizada: covidAtualizadas, pendente: Math.max(total - covidAtualizadas, 0), percentual: total ? covidAtualizadas / total * 100 : 0 }
-  ];
-
-  const menor = coberturas.slice().sort((a, b) => a.percentual - b.percentual)[0] || { nome: "-", percentual: 0 };
-  const aplicadasAno = agruparVacinasAno(registros);
-  const anoAtual = new Date().getFullYear();
-  const aplicadasAnoAtual = aplicadasAno.find(i => Number(i.ano) === Number(anoAtual)) || { dt: 0, hep: 0, total: 0 };
-
-  setText("vacCardCobertura", pct(total ? completos / total * 100 : 0));
-  setText("vacCardCoberturaSub", fmt(completos) + " de " + fmt(total) + " colaboradores");
-  setText("vacCardCompleto", fmt(completos));
-  setText("vacCardIncompleto", fmt(incompletos));
-  setText("vacCardDt", pct(total ? dtAtualizadas / total * 100 : 0));
-  setText("vacCardHep", pct(total ? hepAtualizadas / total * 100 : 0));
-  setText("vacCardCovid", pct(total ? covidAtualizadas / total * 100 : 0));
-  setText("vacCardMenor", menor.nome);
-  setText("vacCardMenorSub", pct(menor.percentual) + " de cobertura");
-  setText("vacCardAplicadas", fmt(aplicadasAnoAtual.total));
-  setText("vacCardAplicadasSub", "dT: " + fmt(aplicadasAnoAtual.dt) + " | Hep B: " + fmt(aplicadasAnoAtual.hep));
-
-  desenharPendenciasSetorVac("chartVacPendenciasSetor", pendenciasVacinasPorCampoDetalhado(registros, "setor"));
-  desenharBarrasHTML("chartVacPendenciasFuncao", pendenciasVacinasPorCampo(registros, "funcao").slice(0, 8), item => item.nome + "\nPendências gerais: " + fmt(item.quantidade));
-  desenharPizza("chartVacCoberturaSexo", coberturaVacinasPorSexo(registros), "Colaboradores completos");
-  desenharAplicadasMesVac("chartVacAplicadasMes", agruparVacinasMes(registros));
-}
-
-function pendenciasVacinasPorCampo(registros, campo) {
-  const grupo = {};
-  (registros || []).forEach(item => {
-    if (possuiPendenciaVacinal(item)) addGrupoJS(grupo, item[campo], 1);
-  });
-  return toArrayJS(grupo).slice(0, 12);
-}
-
-function pendenciasVacinasPorCampoDetalhado(registros, campo) {
-  const grupo = {};
-  (registros || []).forEach(item => {
-    const nome = item[campo] || "Não informado";
-    if (!grupo[nome]) grupo[nome] = { nome: nome, quantidade: 0, dt: 0, hep: 0, covid: 0, colaboradores: 0, completos: 0 };
-    grupo[nome].colaboradores++;
-    if (!possuiPendenciaVacinal(item)) grupo[nome].completos++;
-    if (possuiPendenciaVacinal(item)) grupo[nome].quantidade++;
-    if (item.dtCompleta !== "Completa") grupo[nome].dt++;
-    if (item.hepCompleta !== "Completa") grupo[nome].hep++;
-    if (item.covidCompleta !== "Completa") grupo[nome].covid++;
-  });
-  return Object.keys(grupo).map(k => grupo[k]).filter(i => i.quantidade > 0).sort((a, b) => b.quantidade - a.quantidade).slice(0, 15);
-}
-
-function desenharPendenciasSetorVac(id, dados) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  if (!dados || !dados.length) { el.innerHTML = "<div class='placeholder'>Sem dados</div>"; return; }
-  const max = Math.max(...dados.map(i => Number(i.quantidade || 0)), 1);
-  el.innerHTML = '<div class="bar-list">' + dados.map(item => {
-    const largura = Math.max((Number(item.quantidade || 0) / max) * 100, 4);
-    const cobertura = item.colaboradores ? (item.completos / item.colaboradores) * 100 : 0;
-    const tooltip = item.nome +
-      '\n\nPendências gerais: ' + fmt(item.quantidade) +
-      '\n\ndT a atualizar: ' + fmt(item.dt) +
-      '\nHepatite B pendente: ' + fmt(item.hep) +
-      '\nCOVID pendente: ' + fmt(item.covid) +
-      '\n\nColaboradores analisados: ' + fmt(item.colaboradores) +
-      '\nCobertura no setor: ' + pct(cobertura);
-    return '<div class="bar-row" data-tooltip="' + escAttr(tooltip) + '">' +
-      '<div class="bar-label">' + esc(item.nome) + '</div>' +
-      '<div class="bar-track"><div class="bar-fill" style="width:' + largura + '%"></div></div>' +
-      '<div class="bar-value">' + fmt(item.quantidade) + '</div>' +
-    '</div>';
-  }).join('') + '</div>';
-  ativarTooltip('vacTooltip', '#chartVacPendenciasSetor .bar-row[data-tooltip]');
-}
-
-function agruparVacinasMes(registros) {
-  const hoje = new Date();
-  const anoAtual = hoje.getFullYear();
-  const mesAtual = hoje.getMonth() + 1;
-  const nomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-  const mapa = {};
-  for (let m = 1; m <= mesAtual; m++) mapa[m] = { nome: nomes[m - 1], mes: m, dt: 0, hep: 0, total: 0 };
-  (registros || []).forEach(item => {
-    (item.dtDatas || []).forEach(data => incVacMes(mapa, data, "dt", anoAtual));
-    (item.hepDatas || []).forEach(data => incVacMes(mapa, data, "hep", anoAtual));
-  });
-  return Object.keys(mapa).map(m => mapa[m]);
-}
-
-function obterPendenciasVacinaisFiltradasParaTabela() {
-  const busca = normalizarTextoJS(document.getElementById("vacBuscaTabela")?.value || "");
-  return (VAC_TABELA_BASE || []).filter(item => {
-    if (!busca) return true;
-    const texto = normalizarTextoJS([
-      item.mat,
-      item.nome,
-      item.status,
-      item.setor,
-      item.funcao,
-      item.sexo,
-      item.esquemaCompleto,
-      item.dtCompleta,
-      item.hepCompleta,
-      item.covidCompleta
-    ].join(" "));
-    return texto.indexOf(busca) !== -1;
-  });
-}
-
-function renderizarTabelaVacinas() {
-  const lista = ordenarListaTabelaVacinas(obterPendenciasVacinaisFiltradasParaTabela());
-  const tbody = document.querySelector("#vacTblPendencias tbody");
-  if (!tbody) return;
-  tbody.innerHTML = lista.slice(0,500).map(item => '<tr><td>'+esc(item.mat)+'</td><td>'+esc(item.nome)+'</td><td>'+esc(item.status)+'</td><td>'+esc(item.setor)+'</td><td>'+esc(item.funcao)+'</td><td>'+esc(item.sexo)+'</td><td>'+esc(item.dtCompleta)+'</td><td>'+esc(item.hepCompleta)+'</td><td>'+esc(item.covidCompleta)+'</td><td>'+esc(item.esquemaCompleto)+'</td></tr>').join('');
-  setText("vacTabelaResumo", "Exibindo " + Math.min(lista.length,500) + " de " + lista.length + " colaboradores com pendência vacinal.");
-  atualizarSetasOrdenacaoVacinas();
-}
-
-function ordenarTabelaVacinas(campo) {
-  if (VAC_TABELA_ORDENACAO.campo === campo) {
-    VAC_TABELA_ORDENACAO.direcao = VAC_TABELA_ORDENACAO.direcao === "asc" ? "desc" : "asc";
+function renderExames() {
+  const data = APP.dataCache.exames || {};
+  if (!document.getElementById("examesFiltros")) return;
+  if (!document.getElementById("exames_setor_btn")) renderFiltros("exames", data, {});
+  const rows = filtroComum("exames", data.registros || []);
+  const pendentes = rows.filter(r => (r.exames || []).some(e => e.pendente));
+  setHtml("examesCards", [
+    kpi("EX", "Total de colaboradores", rows.length, "Filtro atual"),
+    kpi("OK", "Exames realizados", sum(rows, r => (r.exames || []).filter(e => e.realizado).length), "Campos configurados"),
+    kpi("!", "Exames pendentes", sum(rows, r => (r.exames || []).filter(e => e.pendente).length), "Pendências"),
+    kpi("👥", "Com pendência", pendentes.length, "Colaboradores")
+  ].join(""));
+  if (!data.origem || data.origem.encontrada === false) {
+    setHtml("examesPendencias", '<div class="empty">' + esc((data.origem || {}).mensagem || "Fonte não encontrada.") + '</div>');
   } else {
-    VAC_TABELA_ORDENACAO = { campo: campo, direcao: "asc" };
+    renderBars("examesPendencias", grupoPendenciasExames(rows), 12);
   }
-  renderizarTabelaVacinas();
+  renderBars("examesSetor", group(pendentes, "setor"), 12);
+  renderTable("examesTabela", "exames", rows, [["mat", "Matrícula"], ["nome", "Nome"], ["status", "Status"], ["setor", "Setor"], ["funcao", "Função"]]);
 }
 
-function ordenarListaTabelaVacinas(lista) {
-  const campo = VAC_TABELA_ORDENACAO.campo || "nome";
-  const fator = VAC_TABELA_ORDENACAO.direcao === "desc" ? -1 : 1;
-  return (lista || []).slice().sort((a, b) => compararCampoTabelaVacinas(a, b, campo) * fator);
+function renderAcidentes() {
+  const data = APP.dataCache.acidentes || {};
+  const trat = (APP.dataCache.tratativas || {}).registros || [];
+  if (!document.getElementById("acidentesFiltros")) return;
+  if (!document.getElementById("acidentes_setor_btn")) renderFiltros("acidentes", data, { anos: data.anos || [] });
+  const rows = filtroComum("acidentes", data.registros || []);
+  const keys = distinct(rows, "key");
+  const repetidos = Object.values(countBy(rows, "key")).filter(v => v > 1).length;
+  setHtml("acidentesCards", [
+    kpi("AB", "Total de acidentes", rows.length, "Eventos"),
+    kpi("👥", "Colaboradores acidentados", keys.length, "Distintos"),
+    kpi("↻", "Reincidentes", repetidos, "Mais de um evento"),
+    kpi("PEP", "PEP iniciada", trat.filter(t => norm(t.pepRealizada).indexOf("SIM") !== -1).length, "EXAMES ACIDENTES"),
+    kpi("!", "Seguimentos pendentes", trat.filter(t => norm(t.status).indexOf("PEND") !== -1).length, "Tratativas")
+  ].join(""));
+  renderBars("acidentesMes", meses(rows), 12);
+  renderBars("acidentesTipo", group(rows, "tipo"), 12);
+  renderBars("acidentesSetor", group(rows, "setor"), 12);
+  renderBars("acidentesTratativas", group(trat.map(t => ({ status: t.status || "PENDENTE" })), "status"), 8);
+  renderTable("acidentesTabela", "acidentes", rows, [["id", "ID"], ["mat", "Matrícula"], ["nome", "Nome"], ["status", "Status"], ["data", "Data"], ["tipo", "Tipo"], ["setor", "Setor"], ["funcao", "Função"], ["agente", "Agente"], ["parteCorpo", "Parte do corpo"]]);
 }
 
-function compararCampoTabelaVacinas(a, b, campo) {
-  if (campo === "mat") {
-    const na = Number(a.mat), nb = Number(b.mat);
-    if (!isNaN(na) && !isNaN(nb)) return na - nb;
-  }
-  return String(a[campo] || "").localeCompare(String(b[campo] || ""), "pt-BR", { numeric: true, sensitivity: "base" });
+function renderTable(target, module, rows, cols) {
+  const sorted = ordenar(module, rows || []);
+  const pageSize = (APP.config && APP.config.pageSize) || 50;
+  const page = APP.pageIndex[module] || 0;
+  const totalPages = Math.max(Math.ceil(sorted.length / pageSize), 1);
+  const start = Math.min(page, totalPages - 1) * pageSize;
+  const current = sorted.slice(start, start + pageSize);
+  const head = cols.map(c => '<th><button class="sort" onclick="ordenarPor(\'' + module + '\',\'' + c[0] + '\')">' + esc(c[1]) + setaSort(module, c[0]) + '</button></th>').join("");
+  const body = current.map(r => '<tr>' + cols.map(c => '<td>' + esc(formatCell(r[c[0]])) + '</td>').join("") + '</tr>').join("");
+  const html = '<div class="table-wrap"><table><thead><tr>' + head + '</tr></thead><tbody>' + (body || '<tr><td colspan="' + cols.length + '">Sem registros</td></tr>') + '</tbody></table></div>' +
+    '<div class="pager"><span>Exibindo ' + (sorted.length ? start + 1 : 0) + '-' + Math.min(start + pageSize, sorted.length) + ' de ' + sorted.length + '</span><span><button class="btn-secondary" onclick="mudarPagina(\'' + module + '\',-1)">Anterior</button> <button class="btn-secondary" onclick="mudarPagina(\'' + module + '\',1)">Próxima</button></span></div>';
+  setHtml(target, html);
 }
 
-function atualizarSetasOrdenacaoVacinas() {
-  document.querySelectorAll("#vacTblPendencias th.sortable").forEach(th => {
-    const ativo = th.getAttribute("data-sort") === VAC_TABELA_ORDENACAO.campo;
-    th.classList.toggle("active", ativo);
-    const seta = th.querySelector(".sort-arrow");
-    if (seta) seta.textContent = ativo ? (VAC_TABELA_ORDENACAO.direcao === "asc" ? "▲" : "▼") : "↕";
+function ordenarPor(module, key) {
+  const s = APP.sort[module] || {};
+  APP.sort[module] = { key, dir: s.key === key && s.dir === "asc" ? "desc" : "asc" };
+  renderizarModulo(module);
+}
+
+function ordenar(module, rows) {
+  const s = APP.sort[module];
+  if (!s || !s.key) return rows;
+  return rows.slice().sort((a, b) => {
+    const av = formatCell(a[s.key]);
+    const bv = formatCell(b[s.key]);
+    return s.dir === "asc" ? av.localeCompare(bv, "pt-BR", { numeric: true }) : bv.localeCompare(av, "pt-BR", { numeric: true });
   });
 }
 
-function baixarPendenciasVacinais() {
-  baixarVacinasPorTipo();
+function setaSort(module, key) {
+  const s = APP.sort[module] || {};
+  return s.key === key ? (s.dir === "asc" ? " ↑" : " ↓") : " ↕";
 }
 
-function baixarVacinasPorTipo() {
-  const tipo = document.getElementById("vacTipoExportacao")?.value || "geral";
-  const busca = normalizarTextoJS(document.getElementById("vacBuscaTabela")?.value || "");
-  const lista = (VAC_FILTRADOS || []).filter(item => {
-    if (tipo === "geral" && item.esquemaCompleto === "Completo" && item.dtCompleta === "Completa" && item.hepCompleta === "Completa" && item.covidCompleta === "Completa") return false;
-    if (tipo === "dt" && item.dtCompleta === "Completa") return false;
-    if (tipo === "hep" && item.hepCompleta === "Completa") return false;
-    if (tipo === "covid" && item.covidCompleta === "Completa") return false;
-    if (!busca) return true;
-    return normalizarTextoJS([item.mat,item.nome,item.status,item.setor,item.funcao,item.sexo,item.esquemaCompleto,item.dtCompleta,item.hepCompleta,item.covidCompleta].join(" ")).indexOf(busca) !== -1;
+function mudarPagina(module, delta) {
+  APP.pageIndex[module] = Math.max(0, (APP.pageIndex[module] || 0) + delta);
+  renderizarModulo(module);
+}
+
+function exportarVacinasCsv() {
+  const data = APP.dataCache.vacinas || {};
+  const tipo = getValue("vacinasExportTipo") || "todas";
+  const labels = { dt: "dT", hepB: "Hepatite B", covid: "COVID" };
+  const pend = filtroComum("vacinas", data.registros || []).filter(r => {
+    if (tipo === "todas") return (r.pendencias || []).length;
+    return (r.pendencias || []).indexOf(labels[tipo]) !== -1;
   });
-  const cabecalhoBase = ["Matrícula", "Nome", "Status", "Setor", "Função", "Sexo"];
-  const colunasVacina = {
-    geral: [
-      { titulo: "dT", valor: item => item.dtCompleta },
-      { titulo: "Hepatite B", valor: item => item.hepCompleta },
-      { titulo: "COVID", valor: item => item.covidCompleta },
-      { titulo: "Situação geral", valor: item => item.esquemaCompleto }
-    ],
-    dt: [{ titulo: "dT", valor: item => item.dtCompleta }],
-    hep: [{ titulo: "Hepatite B", valor: item => item.hepCompleta }],
-    covid: [{ titulo: "COVID", valor: item => item.covidCompleta }]
-  };
-  const colunas = colunasVacina[tipo] || colunasVacina.geral;
-  const cabecalho = cabecalhoBase.concat(colunas.map(coluna => coluna.titulo));
-  const linhas = lista.map(item => [
-    item.mat,
-    item.nome,
-    item.status,
-    item.setor,
-    item.funcao,
-    item.sexo
-  ].concat(colunas.map(coluna => coluna.valor(item))));
+  const header = tipo === "todas" ? ["Matrícula","Nome","Status","Setor","Função","Sexo","Pendências","Situação geral"] : ["Matrícula","Nome","Status","Setor","Função","Sexo","Vacina pendente","Situação da vacina"];
+  const linhas = pend.map(r => tipo === "todas"
+    ? [r.mat,r.nome,r.status,r.setor,r.funcao,r.sexo,(r.pendencias || []).join(" | "),r.situacaoVacinal]
+    : [r.mat,r.nome,r.status,r.setor,r.funcao,r.sexo,labels[tipo],((r.vacinas || {})[tipo] || {}).situacao || "Pendente"]);
+  baixarCsv("pendencias_vacinas_" + tipo + ".csv", [header].concat(linhas));
+}
 
-  const csv = [cabecalho].concat(linhas).map(linha => linha.map(campo => {
-    const valor = String(campo === null || campo === undefined ? "" : campo).replace(/"/g, '""');
-    return '"' + valor + '"';
-  }).join(";")).join("\r\n");
-
-  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+function baixarCsv(nome, linhas) {
+  const csv = linhas.map(row => row.map(v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"').join(";")).join("\n");
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const agora = new Date();
-  const data = agora.getFullYear() + String(agora.getMonth()+1).padStart(2,"0") + String(agora.getDate()).padStart(2,"0");
-  a.href = url;
-  const nomesArquivo = { geral: "todas", dt: "dt", hep: "hepatite_b", covid: "covid" };
-  a.download = "pendencias_vacinais_" + (nomesArquivo[tipo] || "todas") + "_" + data + ".csv";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  a.href = url; a.download = nome; a.click();
   URL.revokeObjectURL(url);
 }
 
-function renderizarDtAtualizarVacinas() {
-  const tbody = document.querySelector("#vacTblDtAtualizar tbody");
-  if (!tbody) return;
-  const inicio = document.getElementById("vacDtInicio")?.value || "";
-  const fim = document.getElementById("vacDtFim")?.value || "";
-  const lista = (VAC_FILTRADOS || []).filter(item => {
-    const data = item.dtProximoReforco || "";
-    if (!data) return false;
-    if (inicio && data < inicio) return false;
-    if (fim && data > fim) return false;
-    return true;
-  }).sort((a,b) => String(a.dtProximoReforco).localeCompare(String(b.dtProximoReforco)) || String(a.nome).localeCompare(String(b.nome), "pt-BR"));
-  tbody.innerHTML = lista.slice(0,500).map(item => '<tr><td>'+esc(item.mat)+'</td><td>'+esc(item.nome)+'</td><td>'+esc(item.setor)+'</td><td>'+esc(item.funcao)+'</td><td>'+esc(item.sexo)+'</td><td>'+esc(formatarDataBRVac(item.dtProximoReforco))+'</td><td>'+esc(item.dtCompleta)+'</td></tr>').join('');
-  setText("vacDtResumo", "Exibindo " + Math.min(lista.length,500) + " de " + lista.length + " colaboradores com reforço dT no período.");
+function kpi(icon, label, value, sub) {
+  return '<div class="kpi-card"><div class="kpi-icon">' + esc(icon) + '</div><div><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong><small>' + esc(sub || "") + '</small></div></div>';
 }
 
-function formatarDataBRVac(dataIso) {
-  const p = String(dataIso || "").split("-");
-  if (p.length !== 3) return dataIso || "";
-  return p[2] + "/" + p[1] + "/" + p[0];
+function renderBars(id, rows, limit) {
+  const list = (rows || []).slice(0, limit || 15);
+  if (!list.length) { setHtml(id, '<div class="empty">Sem dados</div>'); return; }
+  const max = Math.max.apply(null, list.map(r => Number(r.quantidade || 0))) || 1;
+  setHtml(id, '<div class="bar-list">' + list.map(r => {
+    const w = Math.max((Number(r.quantidade || 0) / max) * 100, 2);
+    return '<div class="bar-row"><div class="bar-label" title="' + escAttr(r.nome) + '">' + esc(r.nome) + '</div><div class="bar-track"><div class="bar-fill" style="width:' + w + '%"></div></div><div class="bar-value">' + fmt(r.quantidade) + '</div></div>';
+  }).join("") + '</div>');
 }
 
-/* MULTISELECT GENÉRICO */
-function montarOpcoesMultiGenerico(tipo,lista,prefixo){const alvo=document.getElementById(prefixo+(tipo==="setor"?"OpcoesSetor":"OpcoesFuncao")); if(!alvo)return; alvo.innerHTML=(lista||[]).map(v=>'<label class="check-row" data-text="'+escAttr(normalizarTextoJS(v))+'"><input type="checkbox" value="'+escAttr(v)+'" onchange="'+(prefixo==="af"?'aplicarFiltrosAf':'aplicarFiltrosPat41')+'()"><span>'+esc(v)+'</span></label>').join("");}
-function toggleMultiGenerico(tipo,prefixo){const atual=document.getElementById(prefixo+(tipo==="setor"?"PanelSetor":"PanelFuncao")); const outro=document.getElementById(prefixo+(tipo==="setor"?"PanelFuncao":"PanelSetor")); const status=document.getElementById(prefixo+"PanelStatus"); if(outro)outro.classList.remove("open"); if(status)status.classList.remove("open"); if(atual)atual.classList.toggle("open");}
-function selecionarTodosGenerico(tipo,marcar,prefixo,callback){const painel=document.getElementById(prefixo+(tipo==="setor"?"PanelSetor":"PanelFuncao")); if(!painel)return; painel.querySelectorAll("label.check-row").forEach(row=>{if(row.style.display!=="none"){const input=row.querySelector("input[type='checkbox']"); if(input)input.checked=!!marcar;}}); callback();}
-function filtrarOpcoesGenerico(tipo,prefixo){const buscaId=prefixo+(tipo==="setor"?"BuscaSetor":"BuscaFuncao"); const painelId=prefixo+(tipo==="setor"?"PanelSetor":"PanelFuncao"); const busca=normalizarTextoJS(document.getElementById(buscaId)?.value||""); const painel=document.getElementById(painelId); if(!painel)return; painel.querySelectorAll("label.check-row").forEach(row=>{const texto=row.getAttribute("data-text")||normalizarTextoJS(row.textContent||""); row.style.display=!busca||texto.indexOf(busca)!==-1?"flex":"none";});}
-function selecionadosGenerico(tipo,prefixo){const painel=document.getElementById(prefixo+(tipo==="setor"?"PanelSetor":"PanelFuncao")); if(!painel)return[]; return Array.from(painel.querySelectorAll("input[type='checkbox']:checked")).map(c=>c.value);}
-function atualizarBotoesGenerico(prefixo, textoSetor, textoFuncao){const setores=selecionadosGenerico("setor",prefixo), funcoes=selecionadosGenerico("funcao",prefixo); const btnSetor=document.querySelector("#"+prefixo+"BtnSetor span"), btnFuncao=document.querySelector("#"+prefixo+"BtnFuncao span"); if(btnSetor)btnSetor.textContent=setores.length===0?textoSetor:(setores.length===1?setores[0]:setores.length+" selecionados"); if(btnFuncao)btnFuncao.textContent=funcoes.length===0?textoFuncao:(funcoes.length===1?funcoes[0]:funcoes.length+" selecionadas");}
-function limparFiltrosGenerico(prefixo){[prefixo+"PanelSetor",prefixo+"PanelFuncao"].forEach(id=>{const p=document.getElementById(id); if(!p)return; p.querySelectorAll("input[type='checkbox']").forEach(c=>c.checked=false); p.querySelectorAll("label.check-row").forEach(row=>row.style.display="flex");}); setTextValue(prefixo+"BuscaSetor",""); setTextValue(prefixo+"BuscaFuncao","");}
+function group(rows, key) {
+  const o = {};
+  (rows || []).forEach(r => { const k = r[key] || "Não informado"; o[k] = (o[k] || 0) + 1; });
+  return Object.keys(o).map(k => ({ nome: k, quantidade: o[k] })).sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome));
+}
 
-/* CHARTS HTML */
-function desenharBarrasHTML(id,dados,tooltipFn){const el=document.getElementById(id); if(!el)return; if(!dados||!dados.length){el.innerHTML="<div class='placeholder'>Sem dados</div>";return;} const max=Math.max(...dados.map(i=>Number(i.quantidade||0)),1); el.innerHTML='<div class="bar-list">'+dados.map(item=>{const w=Math.max((Number(item.quantidade||0)/max)*100,4); const tooltip=tooltipFn?tooltipFn(item):""; return '<div class="bar-row" data-tooltip="'+escAttr(tooltip)+'" title="'+escAttr(tooltip)+'"><div class="bar-label">'+esc(item.nome)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+w+'%"></div></div><div class="bar-value">'+fmt(item.quantidade)+'</div></div>';}).join("")+'</div>'; ativarTooltipPat41();}
-function desenharVerticalHTML(id,dados,classe,callback){const el=document.getElementById(id); if(!el)return; if(!dados||!dados.length){el.innerHTML="<div class='placeholder'>Sem dados</div>";return;} const max=Math.max(...dados.map(i=>Number(i.quantidade||0)),1); el.innerHTML='<div class="vertical-chart">'+dados.map(item=>{const h=Math.max((Number(item.quantidade||0)/max)*100,4); return '<div class="vbar-item"><div class="vbar-value">'+fmt(item.quantidade)+'</div><div class="vbar" style="height:'+h+'%" data-tooltip="'+escAttr(item.tooltip||"")+'"></div><div class="vbar-label">'+esc(item.nome)+'</div></div>';}).join("")+'</div>'; if(callback)callback();}
-function desenharMesesHTML(id,dados){desenharVerticalHTML(id,dados||[],"vbar",null);}
-function ativarTooltip(id,selector){const tooltip=document.getElementById(id); if(!tooltip)return; document.querySelectorAll(selector).forEach(item=>{item.onmousemove=e=>{const txt=item.getAttribute("data-tooltip")||""; if(!txt)return; tooltip.textContent=txt; tooltip.style.display="block"; tooltip.style.left=(e.clientX+14)+"px"; tooltip.style.top=(e.clientY+14)+"px";}; item.onmouseleave=()=>tooltip.style.display="none";});}
+function countBy(rows, key) {
+  const o = {};
+  (rows || []).forEach(r => { const k = r[key] || "Não informado"; o[k] = (o[k] || 0) + 1; });
+  return o;
+}
 
-function familiaCidPat41(cid){return familiaCidJS(cid);}
-function descricaoCidPat41(cid){const mapa={"F41":"Outros transtornos ansiosos","I10":"Hipertensão essencial (primária)","E03":"Outros hipotireoidismos","M54":"Dorsalgia","N80":"Endometriose","M79.7":"Fibromialgia","E11":"Diabetes mellitus não-insulino-dependente","J30":"Rinite alérgica e vasomotora","J45":"Asma","J30.4":"Rinite alérgica não especificada","E66":"Obesidade","F32":"Episódios depressivos","F33":"Transtorno depressivo recorrente","M51":"Outros transtornos de discos intervertebrais","M75":"Lesões do ombro","K21":"Doença de refluxo gastroesofágico","G43":"Enxaqueca","D64":"Outras anemias","N39":"Outros transtornos do trato urinário","R51":"Cefaleia"}; const codigo=String(cid||"").toUpperCase().trim(); if(mapa[codigo])return mapa[codigo]; const semPonto=codigo.replace(/\.[0-9A-Z]+$/,""); if(mapa[semPonto])return mapa[semPonto]; return "Descrição CID-10 não cadastrada no portal";}
-function descricaoFamiliaPat41(familia){const mapa={A:"Algumas doenças infecciosas e parasitárias",B:"Algumas doenças infecciosas e parasitárias",C:"Neoplasias",D:"Neoplasias / doenças do sangue e órgãos hematopoéticos",E:"Doenças endócrinas, nutricionais e metabólicas",F:"Transtornos mentais e comportamentais",G:"Doenças do sistema nervoso",H:"Doenças do olho, ouvido e anexos",I:"Doenças do aparelho circulatório",J:"Doenças do aparelho respiratório",K:"Doenças do aparelho digestivo",L:"Doenças da pele e tecido subcutâneo",M:"Doenças do sistema osteomuscular e tecido conjuntivo",N:"Doenças do aparelho geniturinário",O:"Gravidez, parto e puerpério",P:"Afecções originadas no período perinatal",Q:"Malformações congênitas e anomalias cromossômicas",R:"Sintomas, sinais e achados anormais",S:"Lesões, envenenamentos e causas externas",T:"Lesões, envenenamentos e causas externas",U:"Códigos para propósitos especiais",V:"Causas externas de morbidade e mortalidade",W:"Causas externas de morbidade e mortalidade",X:"Causas externas de morbidade e mortalidade",Y:"Causas externas de morbidade e mortalidade",Z:"Fatores que influenciam o estado de saúde"}; return mapa[String(familia||"").toUpperCase()]||"Família CID não classificada";}
+function grupoCids(rows, prop) {
+  const o = {};
+  (rows || []).forEach(r => (r[prop] || []).forEach(c => { const nome = prop === "familiasCid" ? c + " - " + descricaoCid(c) : c; o[nome] = (o[nome] || 0) + 1; }));
+  return Object.keys(o).map(k => ({ nome: k, quantidade: o[k] })).sort((a, b) => b.quantidade - a.quantidade);
+}
 
-function limparFiltrosPatologias(){ limparFiltrosPat41(); }
-function aplicarFiltrosPatologias(){ aplicarFiltrosPat41(); }
-function renderizarTabelaPatologias(){ renderizarTabelaPat41(); }
-function limparFiltrosTabelaPatologias(){ limparPesquisaTabelaPat41(); }
+function grupoPendenciasVac(rows) {
+  const o = {};
+  (rows || []).forEach(r => (r.pendencias || []).forEach(p => { o[p] = (o[p] || 0) + 1; }));
+  return Object.keys(o).map(k => ({ nome: k, quantidade: o[k] })).sort((a, b) => b.quantidade - a.quantidade);
+}
 
-/* GOOGLE CHARTS - PERFIL */
-function desenharPizza(id, dados, tituloValor) { const el=document.getElementById(id); if(!el)return; if(!dados||!dados.length){el.innerHTML="<div class='placeholder'>Sem dados</div>";return;} const tabela=new google.visualization.DataTable(); tabela.addColumn("string","Descrição"); tabela.addColumn("number",tituloValor||"Quantidade"); dados.forEach(i=>tabela.addRow([i.nome||"Não informado", Number(i.quantidade||0)])); new google.visualization.PieChart(el).draw(tabela,{pieHole:.48,legend:{position:"right",textStyle:{fontSize:12}},chartArea:{width:"88%",height:"78%"},fontName:"Inter"}); }
-function desenharBarras(id, dados, tituloValor, horizontal) { const el=document.getElementById(id); if(!el)return; if(!dados||!dados.length){el.innerHTML="<div class='placeholder'>Sem dados</div>";return;} const tabela=new google.visualization.DataTable(); tabela.addColumn("string","Descrição"); tabela.addColumn("number",tituloValor||"Quantidade"); dados.slice(0,15).forEach(i=>tabela.addRow([i.nome||"Não informado", Number(i.quantidade||0)])); new google.visualization.BarChart(el).draw(tabela,{legend:{position:"none"},chartArea:{width:"72%",height:"78%"},hAxis:{minValue:0},fontName:"Inter",bars:horizontal?"horizontal":"vertical",annotations:{alwaysOutside:true}}); }
-function desenharComboPatAf(id, dados) { const el=document.getElementById(id); if(!el)return; if(!dados||!dados.length){el.innerHTML="<div class='placeholder'>Sem dados</div>";return;} const tabela=new google.visualization.DataTable(); tabela.addColumn("string","Família"); tabela.addColumn("number","Patologias"); tabela.addColumn("number","Afastamentos"); dados.slice(0,14).forEach(i=>tabela.addRow([i.nome, Number(i.patologias||0), Number(i.afastamentos||0)])); new google.visualization.ComboChart(el).draw(tabela,{seriesType:"bars",series:{1:{type:"line"}},legend:{position:"top"},chartArea:{width:"78%",height:"72%"},vAxis:{minValue:0},fontName:"Inter"}); }
-function desenharBarrasDuplas(id,dados){ const el=document.getElementById(id); if(!el)return; if(!dados||!dados.length){el.innerHTML="<div class='placeholder'>Sem dados</div>";return;} const tabela=new google.visualization.DataTable(); tabela.addColumn("string","Vacina"); tabela.addColumn("number","Atualizadas"); tabela.addColumn("number","Pendências"); dados.forEach(i=>tabela.addRow([i.nome, Number(i.atualizada||0), Number(i.pendente||0)])); new google.visualization.BarChart(el).draw(tabela,{legend:{position:"top"},chartArea:{width:"70%",height:"72%"},hAxis:{minValue:0},fontName:"Inter",bars:"horizontal"}); }
+function grupoPendenciasExames(rows) {
+  const o = {};
+  (rows || []).forEach(r => (r.exames || []).forEach(e => { if (e.pendente) o[e.nome] = (o[e.nome] || 0) + 1; }));
+  return Object.keys(o).map(k => ({ nome: k, quantidade: o[k] })).sort((a, b) => b.quantidade - a.quantidade);
+}
+
+function cruzarPatAf(rows, eventos) {
+  const allowed = {};
+  rows.forEach(r => { allowed[r.key] = r.familiasCid || []; });
+  const o = {};
+  (eventos || []).forEach(e => {
+    if (!allowed[e.key]) return;
+    const f = e.familiaCid || "Não informado";
+    o[f] = (o[f] || 0) + 1;
+  });
+  return Object.keys(o).map(k => ({ nome: k + " - " + descricaoCid(k), quantidade: o[k] })).sort((a, b) => b.quantidade - a.quantidade);
+}
+
+function grupoHabitos(rows) {
+  return group(rows.map(r => ({ nome: "Atividade: " + (r.atividadeFisica || "Não informado") })), "nome")
+    .concat(group(rows.map(r => ({ nome: "Tabagismo: " + (r.tabagismo || "Não informado") })), "nome"))
+    .concat(group(rows.map(r => ({ nome: "Vacina: " + (r.vacCompleta ? "Completa" : "Pendente") })), "nome"));
+}
+
+function meses(rows) {
+  const nomes = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  const o = {};
+  (rows || []).forEach(r => { if (r.mes) o[r.mes] = (o[r.mes] || 0) + 1; });
+  return nomes.map((n, i) => ({ nome: n, quantidade: o[i + 1] || 0 }));
+}
+
+function distinct(rows, key) {
+  const o = {};
+  (rows || []).forEach(r => { if (r[key]) o[r[key]] = true; });
+  return Object.keys(o);
+}
+
+function sum(rows, fn) { return (rows || []).reduce((acc, r) => acc + Number(fn(r) || 0), 0); }
+function media(total, qtd) { return qtd ? (total / qtd).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "0"; }
+function pct(num, den) { return den ? ((num / den) * 100).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%" : "0,0%"; }
+function fmt(v) { return Number(v || 0).toLocaleString("pt-BR"); }
+function formatCell(v) { return Array.isArray(v) ? v.join(", ") : (v == null ? "" : String(v)); }
+function norm(v) { return String(v == null ? "" : v).trim().replace(/\s+/g, " ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(); }
+function esc(v) { return String(v == null ? "" : v).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
+function escAttr(v) { return esc(v).replace(/'/g, "&#039;"); }
+function setText(id, value) { const el = document.getElementById(id); if (el) el.textContent = value == null ? "" : String(value); }
+function setHtml(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
+function getValue(id) { const el = document.getElementById(id); return el ? el.value : ""; }
+function mostrarLoading(txt) { setText("loadingText", txt || "Carregando..."); document.getElementById("loading").classList.remove("hidden"); document.getElementById("conteudo").classList.add("hidden"); }
+function esconderLoading() { document.getElementById("loading").classList.add("hidden"); document.getElementById("conteudo").classList.remove("hidden"); }
+function erroPortal(erro) { esconderLoading(); setHtml("conteudo", '<div class="empty"><b>Erro ao carregar</b><br>' + esc(erro && erro.message ? erro.message : erro) + '</div>'); }
+function descricaoCid(f) {
+  const map = { A:"Infecciosas", B:"Infecciosas", C:"Neoplasias", D:"Sangue/imunidade", E:"Endócrinas", F:"Mentais", G:"Sistema nervoso", H:"Olhos/ouvidos", I:"Circulatório", J:"Respiratório", K:"Digestivo", L:"Pele", M:"Osteomuscular", N:"Geniturinário", O:"Gestação", P:"Perinatal", Q:"Congênitas", R:"Sintomas", S:"Lesões", T:"Lesões", U:"Especiais", V:"Externas", W:"Externas", X:"Externas", Y:"Externas", Z:"Fatores de saúde" };
+  return map[f] || "Não informado";
+}
 </script>
