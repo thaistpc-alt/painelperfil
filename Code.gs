@@ -6,7 +6,7 @@
 
 const CONFIG = {
   spreadsheetId: "1ap49yRtC1HfT89yYFMmHPXZlvUyLGqeEGx9LuwoD-rY",
-  cachePrefix: "PAINEL_PERFIL_SAUDE_V63_",
+  cachePrefix: "PAINEL_PERFIL_SAUDE_V64_",
   cacheTime: 600,
   sheets: {
     perfil: "BD PERFIL",
@@ -932,14 +932,12 @@ function carregarAfastamentos() {
   const funcoesMap = {};
   const sexosMap = {};
   const anosMap = {};
-  const statusMap = {};
 
   afastamentos.forEach(item => {
     if (item.setor) setoresMap[item.setor] = true;
     if (item.funcao) funcoesMap[item.funcao] = true;
     if (item.sexo) sexosMap[item.sexo] = true;
     if (item.ano) anosMap[item.ano] = true;
-    if (item.status) statusMap[item.status] = true;
   });
 
   const patologiasComparativo = complementarComPerfil(extrairPatologias(), mapaPerfil)
@@ -954,7 +952,6 @@ function carregarAfastamentos() {
       setores: ordenarLista(Object.keys(setoresMap)),
       funcoes: ordenarLista(Object.keys(funcoesMap)),
       sexos: ordenarLista(Object.keys(sexosMap)),
-      status: ordenarLista(Object.keys(statusMap)),
       anos: Object.keys(anosMap).sort((a, b) => Number(b) - Number(a))
     },
     registros: afastamentos,
