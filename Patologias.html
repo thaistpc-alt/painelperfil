@@ -144,10 +144,10 @@
     </div>
     <div class="filter-group">
       <label>Status colaborador</label>
-      <button type="button" class="multi-btn" id="pat41BtnStatus" onclick="toggleMultiPat41('status')"><span>Todos os status</span><b>▼</b></button>
+      <button type="button" class="multi-btn" id="pat41BtnStatus" onclick="toggleMultiPat41('status')"><span>Status padrão</span><b>▼</b></button>
       <div class="multi-panel" id="pat41PanelStatus">
         <input class="multi-search" id="pat41BuscaStatus" placeholder="Pesquisar status" oninput="filtrarOpcoesPat41('status')">
-        <div class="multi-actions"><button type="button" onclick="selecionarTodosPat41('status',true)">Marcar todos</button><button type="button" onclick="selecionarTodosPat41('status',false)">Limpar</button></div>
+        <div class="multi-actions"><button type="button" onclick="resetarFiltroStatus('pat41'); aplicarFiltrosPat41();">Padrão</button><button type="button" onclick="selecionarTodosPat41('status',true)">Marcar todos</button><button type="button" onclick="selecionarTodosPat41('status',false)">Limpar</button></div>
         <div id="pat41OpcoesStatus"></div>
       </div>
     </div>

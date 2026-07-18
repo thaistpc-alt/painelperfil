@@ -168,12 +168,21 @@ function addGrupoJS(obj,chave,qtd){ const k=chave||"Não informado"; obj[k]=(obj
 function toArrayJS(obj){ return Object.keys(obj).map(k=>({nome:k,quantidade:obj[k]})).sort((a,b)=>b.quantidade-a.quantidade); }
 function familiaCidJS(cid){ const m=String(cid||"").toUpperCase().match(/[A-Z]/); return m?m[0]:""; }
 function classSexo(s){ const v=normalizarTextoJS(s); if(v==="F"||v==="FEMININO"||v==="FEMININA")return"Feminino"; if(v==="M"||v==="MASCULINO"||v==="MASCULINA")return"Masculino"; return s || "Não informado"; }
+function statusExcluidoPadrao(status) {
+  const s = normalizarTextoJS(status);
+  return s.indexOf("DESLIG") !== -1 ||
+    s.indexOf("APOSENT") !== -1 ||
+    s.indexOf("OBITO") !== -1 ||
+    s.indexOf("FALECID") !== -1 ||
+    (s.indexOf("AFASTADO") !== -1 && s.indexOf("INSS") !== -1);
+}
 function montarFiltroStatus(prefixo, lista, callbackNome) {
   const alvo = document.getElementById(prefixo + "OpcoesStatus");
   if (!alvo) return;
   alvo.innerHTML = (lista || []).map(status => {
+    const checked = statusExcluidoPadrao(status) ? "" : " checked";
     return '<label class="check-row" data-text="' + escAttr(normalizarTextoJS(status)) + '">' +
-      '<input type="checkbox" value="' + escAttr(status) + '" checked onchange="' + callbackNome + '()">' +
+      '<input type="checkbox" value="' + escAttr(status) + '"' + checked + ' onchange="' + callbackNome + '()">' +
       '<span>' + esc(status) + '</span>' +
     '</label>';
   }).join("");
@@ -188,7 +197,7 @@ function resetarFiltroStatus(prefixo) {
   const alvo = document.getElementById(prefixo + "OpcoesStatus");
   if (!alvo) return;
   alvo.querySelectorAll("input[type='checkbox']").forEach(input => {
-    input.checked = true;
+    input.checked = !statusExcluidoPadrao(input.value);
   });
   atualizarBotaoStatus(prefixo);
 }
@@ -198,8 +207,8 @@ function atualizarBotaoStatus(prefixo) {
   if (!alvo || !btn) return;
   const inputs = Array.from(alvo.querySelectorAll("input[type='checkbox']"));
   const selecionados = inputs.filter(input => input.checked);
-  const todos = inputs.length && selecionados.length === inputs.length;
-  if (todos) btn.textContent = "Todos os status";
+  const padrao = inputs.length && inputs.every(input => input.checked !== statusExcluidoPadrao(input.value));
+  if (padrao) btn.textContent = "Status padrão";
   else if (!selecionados.length) btn.textContent = "Nenhum status";
   else if (selecionados.length === 1) btn.textContent = selecionados[0].value;
   else btn.textContent = selecionados.length + " selecionados";
@@ -390,8 +399,6 @@ function prepararAfastamentos(){
   montarFiltroStatus("af",(d.filtros||{}).status||[],"aplicarFiltrosAf");
   preencherSelect("afFiltroSexo",(d.filtros||{}).sexos||[],"Todos");
   preencherSelect("afFiltroAno",(d.filtros||{}).anos||[],"Todos");
-  const anoVig=String(d.anoVigente||new Date().getFullYear());
-  if(((d.filtros||{}).anos||[]).indexOf(anoVig)!==-1) document.getElementById("afFiltroAno").value=anoVig;
   aplicarFiltrosAf();
 }
 

@@ -100,10 +100,10 @@
     </div>
     <div class="filter-group">
       <label>Status colaborador</label>
-      <button type="button" class="multi-btn" id="vacBtnStatus" onclick="toggleMultiVac('status')"><span>Todos os status</span><b>▾</b></button>
+      <button type="button" class="multi-btn" id="vacBtnStatus" onclick="toggleMultiVac('status')"><span>Status padrão</span><b>▾</b></button>
       <div class="multi-panel status-panel" id="vacPanelStatus">
         <input class="multi-search" id="vacBuscaStatus" placeholder="Pesquisar status" oninput="filtrarOpcoesVac('status')">
-        <div class="multi-actions"><button type="button" onclick="selecionarTodosVac('status',true)">Marcar todos</button><button type="button" onclick="selecionarTodosVac('status',false)">Limpar</button></div>
+        <div class="multi-actions"><button type="button" onclick="selecionarStatusPadraoVac()">Padrão</button><button type="button" onclick="selecionarTodosVac('status',true)">Marcar todos</button><button type="button" onclick="selecionarTodosVac('status',false)">Limpar</button></div>
         <div id="vacOpcoesStatus"></div>
       </div>
     </div>

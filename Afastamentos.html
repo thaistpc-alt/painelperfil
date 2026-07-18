@@ -96,7 +96,7 @@
     #page-afastamentos-v50 .af-dot.af-green{background:#0f766e;}
 
     @media(max-width:1180px){
-      #page-afastamentos-v50 .af-filter-row{grid-template-columns:1fr 1fr 1fr 120px 110px 140px!important;}
+      #page-afastamentos-v50 .af-filter-row{grid-template-columns:1fr 1fr 1fr!important;}
       #page-afastamentos-v50 .af-kpi-grid{grid-template-columns:repeat(3,1fr);}
       #page-afastamentos-v50 .af-kpi-grid.af-kpi-grid-secondary{grid-template-columns:1fr;}
       #page-afastamentos-v50 .af-two-col{grid-template-columns:1fr;}
@@ -138,10 +138,10 @@
 
     <div class="multi-wrap">
       <label>Status colaborador</label>
-      <button type="button" class="multi-btn" id="afBtnStatus" onclick="toggleMultiAf('status')"><span>Todos os status</span><b>▾</b></button>
+      <button type="button" class="multi-btn" id="afBtnStatus" onclick="toggleMultiAf('status')"><span>Status padrão</span><b>▾</b></button>
       <div class="multi-panel" id="afPanelStatus">
         <input class="multi-search" id="afBuscaStatus" placeholder="Pesquisar status" oninput="filtrarOpcoesAf('status')">
-        <div class="multi-actions"><button type="button" onclick="selecionarTodosAf('status',true)">Marcar todos</button><button type="button" onclick="selecionarTodosAf('status',false)">Limpar</button></div>
+        <div class="multi-actions"><button type="button" onclick="resetarFiltroStatus('af'); aplicarFiltrosAf();">Padrão</button><button type="button" onclick="selecionarTodosAf('status',true)">Marcar todos</button><button type="button" onclick="selecionarTodosAf('status',false)">Limpar</button></div>
         <div id="afOpcoesStatus"></div>
       </div>
     </div>
