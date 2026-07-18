@@ -6,7 +6,7 @@
 
 const CONFIG = {
   spreadsheetId: "1ap49yRtC1HfT89yYFMmHPXZlvUyLGqeEGx9LuwoD-rY",
-  cachePrefix: "PAINEL_PERFIL_SAUDE_V60_",
+  cachePrefix: "PAINEL_PERFIL_SAUDE_V61_",
   cacheTime: 600,
   sheets: {
     perfil: "BD PERFIL",
@@ -19,21 +19,53 @@ const CONFIG = {
 };
 
 function doGet() {
-  return HtmlService
-    .createTemplateFromFile("Index")
-    .evaluate()
-    .setTitle("PAINEL PERFIL DE SAÚDE SESMT HRC")
+  return renderizarIndexHtml()
+    .setTitle("SESMT HRC - Perfil de Saúde")
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function include(nomeArquivo) {
+  const permitidos = {
+    Style: true,
+    JavaScript: true
+  };
+  if (!permitidos[nomeArquivo]) {
+    throw new Error("Include não permitido: " + nomeArquivo);
+  }
   return HtmlService.createHtmlOutputFromFile(nomeArquivo).getContent();
+}
+
+function renderizarIndexHtml() {
+  return HtmlService.createTemplateFromFile("Index").evaluate();
+}
+
+function validarTemplatesPortal() {
+  const html = renderizarIndexHtml().getContent();
+  const problemas = [];
+  if (html.indexOf('include("Style")') !== -1 || html.indexOf("include('Style')") !== -1) {
+    problemas.push('O include("Style") apareceu literalmente no HTML final.');
+  }
+  if (html.indexOf("<?") !== -1) {
+    problemas.push("Há scriptlet não processado no HTML final.");
+  }
+  if (html.indexOf("<style>") === -1) {
+    problemas.push("O CSS não foi injetado no HTML final.");
+  }
+  if (html.indexOf("<script>") === -1) {
+    problemas.push("O JavaScript não foi injetado no HTML final.");
+  }
+  return {
+    sucesso: problemas.length === 0,
+    problemas,
+    tamanhoHtml: html.length
+  };
 }
 
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("Painel Perfil de Saúde")
     .addItem("Limpar cache do portal", "limparCachePerfilSaude")
+    .addItem("Validar templates do portal", "validarTemplatesPortal")
     .addItem("Testar aba Perfil", "testarPerfilSaude")
     .addItem("Testar aba Patologias", "testarPatologias")
     .addItem("Testar aba Afastamentos", "testarAfastamentos")
