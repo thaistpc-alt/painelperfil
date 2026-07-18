@@ -356,9 +356,6 @@ function renderPerfilSaude() {
   const rows = filtroPerfilColaboradores(data.colaboradores || []);
   const rowsDemografia = filtroPerfilColaboradores(data.colaboradores || [], true);
   const ano = getValue("perfil_ano");
-  const rowKeys = {};
-  rows.forEach(r => { rowKeys[r.key] = true; });
-
   const rowsTotal = rowsDemografia.filter(r => !statusForaTotalPerfil(r.status));
   const rowsAtivos = rowsDemografia.filter(r => statusAtivoPerfil(r.status));
   const homens = rowsTotal.filter(r => r.sexo === "Masculino");
@@ -367,7 +364,7 @@ function renderPerfilSaude() {
   const mulheresAtivas = rowsAtivos.filter(r => r.sexo === "Feminino");
   const withPat = rows.filter(r => (r.cids || []).length).length;
   const totalCids = sum(rows, r => (r.cids || []).length);
-  const eventosAfast = ((data.eventos || {}).afastamentos || []).filter(e => rowKeys[e.key] && (!ano || String(e.ano || "") === String(ano)));
+  const eventosAfast = ((data.eventos || {}).afastamentos || []).filter(e => !ano || String(e.ano || "") === String(ano));
   const pendVac = rows.filter(r => (r.vacPendencias || []).length);
   const topCid = grupoCids(rows, "cids")[0];
 
@@ -378,9 +375,9 @@ function renderPerfilSaude() {
     kpi("F", "Mulheres", mulheresAtivas.length, "Total: " + mulheres.length)
   ].join(""));
 
-  renderBars("perfilAtividade", group(rows, "atividadeFisica"), 8);
-  renderBars("perfilTabagismo", group(rows, "tabagismo"), 8);
-  renderBars("perfilEtilismo", group(rows, "etilismo"), 8);
+  renderHabitBars("perfilAtividade", grupoHabito(rows, "atividadeFisica"));
+  renderHabitBars("perfilTabagismo", grupoHabito(rows, "tabagismo"));
+  renderHabitBars("perfilEtilismo", grupoHabito(rows, "etilismo"));
 
   setHtml("perfilVacinasCards", [
     kpi("VC", "Cobertura geral", pct(rows.filter(r => r.vacCompleta).length, rows.length), rows.filter(r => r.vacCompleta).length + " de " + rows.length),
@@ -486,13 +483,35 @@ function cruzarPatologiasAfastamentosFamilia(rows, eventos) {
 
 function cruzarPatologiasAfastamentosCid(rows, eventos) {
   const top = grupoCids(rows, "cids").slice(0, 10);
-  const afastPorCid = countBy(eventos.filter(e => e.cid), "cid");
+  const afastPorCid = {};
+  (eventos || []).forEach(e => {
+    const cid = cidComparavel(e.cid);
+    if (cid) afastPorCid[cid] = (afastPorCid[cid] || 0) + 1;
+  });
   return top.map(item => ({
     nome: item.nome,
     patologias: item.quantidade,
-    afastamentos: afastPorCid[item.nome] || 0,
-    detalhe: "Patologias: " + item.quantidade + " | Afastamentos: " + (afastPorCid[item.nome] || 0)
+    afastamentos: afastPorCid[cidComparavel(item.nome)] || 0,
+    detalhe: "Patologias: " + item.quantidade + " | Afastamentos: " + (afastPorCid[cidComparavel(item.nome)] || 0)
   }));
+}
+
+function cidComparavel(cid) {
+  const m = norm(cid).replace(/[^A-Z0-9]/g, "").match(/[A-Z][0-9]{2}/);
+  return m ? m[0] : "";
+}
+
+function grupoHabito(rows, key) {
+  const contagem = { "SIM": 0, "NÃO": 0, "NÃO INFORMADO": 0 };
+  (rows || []).forEach(r => {
+    const v = norm(r[key]);
+    let label = "NÃO INFORMADO";
+    if (!v || v.indexOf("INFORMADO") !== -1 || v.indexOf("REGISTRO") !== -1) label = "NÃO INFORMADO";
+    else if (v === "SIM" || v.indexOf("SIM") === 0) label = "SIM";
+    else if (v === "NAO" || v === "NÃO" || v.indexOf("NAO") === 0 || v.indexOf("NÃO") === 0) label = "NÃO";
+    contagem[label] += 1;
+  });
+  return ["SIM", "NÃO", "NÃO INFORMADO"].map(nome => ({ nome, quantidade: contagem[nome] || 0 }));
 }
 
 function renderPatologias() {
@@ -708,6 +727,15 @@ function renderBars(id, rows, limit) {
     const w = Math.max((Number(r.quantidade || 0) / max) * 100, 2);
     const title = escAttr(r.detalhe ? r.nome + " | " + r.detalhe : r.nome);
     return '<div class="bar-row" title="' + title + '"><div class="bar-label" title="' + title + '">' + esc(r.nome) + '</div><div class="bar-track"><div class="bar-fill" style="width:' + w + '%"></div></div><div class="bar-value">' + fmt(r.quantidade) + '</div></div>';
+  }).join("") + '</div>');
+}
+
+function renderHabitBars(id, rows) {
+  const list = rows || [];
+  const max = Math.max.apply(null, list.map(r => Number(r.quantidade || 0))) || 1;
+  setHtml(id, '<div class="habit-list">' + list.map(r => {
+    const w = Math.max((Number(r.quantidade || 0) / max) * 100, r.quantidade ? 3 : 0);
+    return '<div class="habit-row"><div class="habit-label">' + esc(r.nome) + '</div><div class="habit-track"><div class="habit-fill" style="width:' + w + '%"></div></div><div class="habit-value">' + fmt(r.quantidade) + '</div></div>';
   }).join("") + '</div>');
 }
 
