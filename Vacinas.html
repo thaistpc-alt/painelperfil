@@ -153,10 +153,16 @@
       <button class="btn-secondary" onclick="toggleTabelaVacinas()" id="vacBtnTabela">Consultar pendências vacinais</button>
     </div>
     <div id="vacAreaTabela" class="vac-tabela-oculta">
-      <div class="table-tools"><input id="vacBuscaTabela" placeholder="Pesquisar por matrícula, nome, setor, função ou situação" oninput="renderizarTabelaVacinas()"><button class="btn-secondary" onclick="limparPesquisaVacinas()">Limpar pesquisa</button><select id="vacTipoExportacao" class="vac-export-select" title="Escolha o tipo de vacina para exportar"><option value="geral">Todas as pendências</option><option value="dt">dT</option><option value="hep">Hepatite B</option><option value="covid">COVID</option></select><button class="btn-primary" onclick="baixarVacinasPorTipo()">Exportar CSV</button></div>
+      <div class="table-tools">
+        <input id="vacBuscaTabela" placeholder="Pesquisar por matrícula, nome, setor, função ou situação" oninput="renderizarTabelaVacinas()">
+        <select id="vacFiltroStatusTabela" class="vac-status-select" onchange="renderizarTabelaVacinas()" title="Filtrar por status do colaborador"><option value="">Todos os status</option></select>
+        <button class="btn-secondary" onclick="limparPesquisaVacinas()">Limpar pesquisa</button>
+        <select id="vacTipoExportacao" class="vac-export-select" title="Escolha o tipo de vacina para exportar"><option value="geral">Todas as pendências</option><option value="dt">dT</option><option value="hep">Hepatite B</option><option value="covid">COVID</option></select>
+        <button class="btn-primary" onclick="baixarVacinasPorTipo()">Exportar CSV</button>
+      </div>
       <div class="table-wrapper">
         <table id="vacTblPendencias">
-          <thead><tr><th>Matrícula</th><th>Nome</th><th>Setor</th><th>Função</th><th>Sexo</th><th>dT</th><th>Hepatite B</th><th>COVID</th><th>Situação geral</th></tr></thead>
+          <thead><tr><th class="sortable" data-sort="mat" onclick="ordenarTabelaVacinas('mat')">Matrícula<span class="sort-arrow"></span></th><th class="sortable" data-sort="nome" onclick="ordenarTabelaVacinas('nome')">Nome<span class="sort-arrow"></span></th><th class="sortable" data-sort="status" onclick="ordenarTabelaVacinas('status')">Status<span class="sort-arrow"></span></th><th class="sortable" data-sort="setor" onclick="ordenarTabelaVacinas('setor')">Setor<span class="sort-arrow"></span></th><th class="sortable" data-sort="funcao" onclick="ordenarTabelaVacinas('funcao')">Função<span class="sort-arrow"></span></th><th class="sortable" data-sort="sexo" onclick="ordenarTabelaVacinas('sexo')">Sexo<span class="sort-arrow"></span></th><th class="sortable" data-sort="dtCompleta" onclick="ordenarTabelaVacinas('dtCompleta')">dT<span class="sort-arrow"></span></th><th class="sortable" data-sort="hepCompleta" onclick="ordenarTabelaVacinas('hepCompleta')">Hepatite B<span class="sort-arrow"></span></th><th class="sortable" data-sort="covidCompleta" onclick="ordenarTabelaVacinas('covidCompleta')">COVID<span class="sort-arrow"></span></th><th class="sortable" data-sort="esquemaCompleto" onclick="ordenarTabelaVacinas('esquemaCompleto')">Situação geral<span class="sort-arrow"></span></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>

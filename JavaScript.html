@@ -33,6 +33,7 @@ function configurarMenu() {
       document.getElementById("app").classList.add("menu-recolhido");
     }
   } catch (e) {}
+  atualizarBotaoMenuRecolhido();
 }
 
 function alternarMenu() {
@@ -40,7 +41,20 @@ function alternarMenu() {
   if (!app) return;
   const recolhido = app.classList.toggle("menu-recolhido");
   try { localStorage.setItem("perfilSaudeMenuRecolhido", recolhido ? "1" : "0"); } catch (e) {}
+  atualizarBotaoMenuRecolhido();
   setTimeout(() => window.dispatchEvent(new Event("resize")), 240);
+}
+
+function atualizarBotaoMenuRecolhido() {
+  const app = document.getElementById("app");
+  const btn = document.querySelector(".menu-collapse-btn");
+  if (!app || !btn) return;
+  const recolhido = app.classList.contains("menu-recolhido");
+  const icone = btn.querySelector("span");
+  const texto = btn.querySelector("b");
+  if (icone) icone.textContent = recolhido ? "›" : "«";
+  if (texto) texto.textContent = recolhido ? "Expandir menu" : "Recolher menu";
+  btn.title = recolhido ? "Expandir menu" : "Recolher menu";
 }
 
 function trocarPagina(pagina) {
@@ -519,6 +533,7 @@ function descricaoCidAfastamento(cid){
 let VAC_DADOS = { registros: [], filtros: { setores: [], funcoes: [], sexos: [], situacoes: [] } };
 let VAC_FILTRADOS = [];
 let VAC_TABELA_BASE = [];
+let VAC_TABELA_ORDENACAO = { campo: "nome", direcao: "asc" };
 
 function carregarDadosVacinas(forcarAtualizacao) {
   if (dadosVacinas && !forcarAtualizacao) {
@@ -622,6 +637,7 @@ function limparFiltrosVacinas() {
   setTextValue("vacFiltroSexo", "");
   setTextValue("vacFiltroSituacao", "");
   setTextValue("vacBuscaTabela", "");
+  setTextValue("vacFiltroStatusTabela", "");
   aplicarFiltrosVacinas();
 }
 
@@ -859,9 +875,17 @@ function prepararVacinas() {
   montarOpcoesVac("funcao", (d.filtros || {}).funcoes || Array.from(new Set(registros.map(i => i.funcao).filter(Boolean))).sort());
   preencherSelect("vacFiltroSexo", (d.filtros || {}).sexos || Array.from(new Set(registros.map(i => i.sexo).filter(Boolean))).sort(), "Todos");
   preencherSelect("vacFiltroSituacao", (d.filtros || {}).situacoes || ["Completo", "Incompleto"], "Todas");
+  preencherFiltroStatusTabelaVacinas(registros);
 
   configurarPeriodoDtVacinas();
   aplicarFiltrosVacinas();
+}
+
+function preencherFiltroStatusTabelaVacinas(registros) {
+  const atual = document.getElementById("vacFiltroStatusTabela")?.value || "";
+  const status = Array.from(new Set((registros || []).map(item => item.status).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  preencherSelect("vacFiltroStatusTabela", status, "Todos os status");
+  if (atual && status.indexOf(atual) !== -1) setTextValue("vacFiltroStatusTabela", atual);
 }
 
 function configurarPeriodoDtVacinas() {
@@ -1011,11 +1035,14 @@ function agruparVacinasMes(registros) {
 
 function obterPendenciasVacinaisFiltradasParaTabela() {
   const busca = normalizarTextoJS(document.getElementById("vacBuscaTabela")?.value || "");
+  const status = document.getElementById("vacFiltroStatusTabela")?.value || "";
   return (VAC_TABELA_BASE || []).filter(item => {
+    if (status && item.status !== status) return false;
     if (!busca) return true;
     const texto = normalizarTextoJS([
       item.mat,
       item.nome,
+      item.status,
       item.setor,
       item.funcao,
       item.sexo,
@@ -1029,11 +1056,44 @@ function obterPendenciasVacinaisFiltradasParaTabela() {
 }
 
 function renderizarTabelaVacinas() {
-  const lista = obterPendenciasVacinaisFiltradasParaTabela();
+  const lista = ordenarListaTabelaVacinas(obterPendenciasVacinaisFiltradasParaTabela());
   const tbody = document.querySelector("#vacTblPendencias tbody");
   if (!tbody) return;
-  tbody.innerHTML = lista.slice(0,500).map(item => '<tr><td>'+esc(item.mat)+'</td><td>'+esc(item.nome)+'</td><td>'+esc(item.setor)+'</td><td>'+esc(item.funcao)+'</td><td>'+esc(item.sexo)+'</td><td>'+esc(item.dtCompleta)+'</td><td>'+esc(item.hepCompleta)+'</td><td>'+esc(item.covidCompleta)+'</td><td>'+esc(item.esquemaCompleto)+'</td></tr>').join('');
+  tbody.innerHTML = lista.slice(0,500).map(item => '<tr><td>'+esc(item.mat)+'</td><td>'+esc(item.nome)+'</td><td>'+esc(item.status)+'</td><td>'+esc(item.setor)+'</td><td>'+esc(item.funcao)+'</td><td>'+esc(item.sexo)+'</td><td>'+esc(item.dtCompleta)+'</td><td>'+esc(item.hepCompleta)+'</td><td>'+esc(item.covidCompleta)+'</td><td>'+esc(item.esquemaCompleto)+'</td></tr>').join('');
   setText("vacTabelaResumo", "Exibindo " + Math.min(lista.length,500) + " de " + lista.length + " colaboradores com pendência vacinal geral.");
+  atualizarSetasOrdenacaoVacinas();
+}
+
+function ordenarTabelaVacinas(campo) {
+  if (VAC_TABELA_ORDENACAO.campo === campo) {
+    VAC_TABELA_ORDENACAO.direcao = VAC_TABELA_ORDENACAO.direcao === "asc" ? "desc" : "asc";
+  } else {
+    VAC_TABELA_ORDENACAO = { campo: campo, direcao: "asc" };
+  }
+  renderizarTabelaVacinas();
+}
+
+function ordenarListaTabelaVacinas(lista) {
+  const campo = VAC_TABELA_ORDENACAO.campo || "nome";
+  const fator = VAC_TABELA_ORDENACAO.direcao === "desc" ? -1 : 1;
+  return (lista || []).slice().sort((a, b) => compararCampoTabelaVacinas(a, b, campo) * fator);
+}
+
+function compararCampoTabelaVacinas(a, b, campo) {
+  if (campo === "mat") {
+    const na = Number(a.mat), nb = Number(b.mat);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+  }
+  return String(a[campo] || "").localeCompare(String(b[campo] || ""), "pt-BR", { numeric: true, sensitivity: "base" });
+}
+
+function atualizarSetasOrdenacaoVacinas() {
+  document.querySelectorAll("#vacTblPendencias th.sortable").forEach(th => {
+    const ativo = th.getAttribute("data-sort") === VAC_TABELA_ORDENACAO.campo;
+    th.classList.toggle("active", ativo);
+    const seta = th.querySelector(".sort-arrow");
+    if (seta) seta.textContent = ativo ? (VAC_TABELA_ORDENACAO.direcao === "asc" ? "▲" : "▼") : "↕";
+  });
 }
 
 function baixarPendenciasVacinais() {
@@ -1043,18 +1103,21 @@ function baixarPendenciasVacinais() {
 function baixarVacinasPorTipo() {
   const tipo = document.getElementById("vacTipoExportacao")?.value || "geral";
   const busca = normalizarTextoJS(document.getElementById("vacBuscaTabela")?.value || "");
+  const status = document.getElementById("vacFiltroStatusTabela")?.value || "";
   const lista = (VAC_FILTRADOS || []).filter(item => {
+    if (status && item.status !== status) return false;
     if (tipo === "geral" && item.esquemaCompleto === "Completo") return false;
     if (tipo === "dt" && item.dtCompleta === "Completa") return false;
     if (tipo === "hep" && item.hepCompleta === "Completa") return false;
     if (tipo === "covid" && item.covidCompleta === "Completa") return false;
     if (!busca) return true;
-    return normalizarTextoJS([item.mat,item.nome,item.setor,item.funcao,item.sexo,item.esquemaCompleto,item.dtCompleta,item.hepCompleta,item.covidCompleta].join(" ")).indexOf(busca) !== -1;
+    return normalizarTextoJS([item.mat,item.nome,item.status,item.setor,item.funcao,item.sexo,item.esquemaCompleto,item.dtCompleta,item.hepCompleta,item.covidCompleta].join(" ")).indexOf(busca) !== -1;
   });
-  const cabecalho = ["Matrícula", "Nome", "Setor", "Função", "Sexo", "dT", "Hepatite B", "COVID", "Situação geral"];
+  const cabecalho = ["Matrícula", "Nome", "Status", "Setor", "Função", "Sexo", "dT", "Hepatite B", "COVID", "Situação geral"];
   const linhas = lista.map(item => [
     item.mat,
     item.nome,
+    item.status,
     item.setor,
     item.funcao,
     item.sexo,
