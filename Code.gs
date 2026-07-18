@@ -6,30 +6,58 @@ function doGet() {
 }
 
 function include(nomeArquivo) {
-  const nome = String(nomeArquivo || "");
-  if (!CONFIG.includes[nome]) throw new Error("Include não permitido: " + nome);
+  var nome = String(nomeArquivo || "");
+  var permitidos = { Style: true, JavaScript: true, Components: true };
+  if (!permitidos[nome]) throw new Error("Include não permitido: " + nome);
   return HtmlService.createHtmlOutputFromFile(nome).getContent();
 }
 
 function carregarView(nomeView) {
-  const chave = normalizarChave(nomeView || "perfil");
-  const arquivo = CONFIG.views[chave] || CONFIG.views.perfil;
+  var chave = String(nomeView || "perfil").toLowerCase().replace(/[^a-z0-9]/g, "");
+  var views = {
+    perfil: "Perfil",
+    patologias: "Patologias",
+    afastamentos: "Afastamentos",
+    vacinas: "Vacinas",
+    exames: "Exames",
+    seguimento: "SeguimentoExames",
+    acidentes: "AcidentesBiologicos"
+  };
+  var arquivo = views[chave] || views.perfil;
   return HtmlService.createHtmlOutputFromFile(arquivo).getContent();
 }
 
 function carregarConfiguracoes() {
-  return medirPerformance("carregarConfiguracoes", () => {
-    return {
-      pageSize: CONFIG.pageSize,
-      bases: Object.keys(CONFIG.sheets).map(key => ({
-        key,
-        nome: CONFIG.sheets[key].name,
-        headerRow: CONFIG.sheets[key].headerRow
-      })),
-      statusOptions: montarOpcoesStatus_(["Ativo", "Ativo - Reabilitado", "Gestante", "Desligado", "Óbito", "Transferido", "Suspenso", "Aposentado", "Afastado pelo INSS", "Licença-maternidade", "Não informado"]),
-      updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm")
-    };
+  var sheets = {
+    perfil: { name: "BD PERFIL", headerRow: 1 },
+    patologias: { name: "BD PATOLOGIAS", headerRow: 1 },
+    vacinas: { name: "BD VACINAS", headerRow: 1 },
+    afastamentos: { name: "BD AFASTAMENTOS", headerRow: 3 },
+    acidentes: { name: "BD ACIDENTES", headerRow: 1 },
+    examesAcidentes: { name: "EXAMES ACIDENTES", headerRow: 2 }
+  };
+  var bases = [];
+  Object.keys(sheets).forEach(function(key) {
+    bases.push({ key: key, nome: sheets[key].name, headerRow: sheets[key].headerRow });
   });
+  return {
+    pageSize: 50,
+    bases: bases,
+    statusOptions: [
+      { nome: "Ativo", selected: true },
+      { nome: "Ativo - Reabilitado", selected: true },
+      { nome: "Gestante", selected: true },
+      { nome: "Desligado", selected: false },
+      { nome: "Óbito", selected: false },
+      { nome: "Transferido", selected: false },
+      { nome: "Suspenso", selected: false },
+      { nome: "Aposentado", selected: false },
+      { nome: "Afastado pelo INSS", selected: false },
+      { nome: "Licença-maternidade", selected: false },
+      { nome: "Não informado", selected: true }
+    ],
+    updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm")
+  };
 }
 
 function limparCachePerfilSaude() {

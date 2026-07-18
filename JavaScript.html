@@ -31,7 +31,30 @@ function iniciarPortal() {
   google.script.run.withSuccessHandler(ret => {
     APP.config = ret || {};
     trocarPagina("perfil");
-  }).withFailureHandler(erroPortal).carregarConfiguracoes();
+  }).withFailureHandler(erro => {
+    APP.config = configuracaoFallback();
+    trocarPagina("perfil");
+  }).carregarConfiguracoes();
+}
+
+function configuracaoFallback() {
+  return {
+    pageSize: 50,
+    statusOptions: [
+      { nome: "Ativo", selected: true },
+      { nome: "Ativo - Reabilitado", selected: true },
+      { nome: "Gestante", selected: true },
+      { nome: "Desligado", selected: false },
+      { nome: "Óbito", selected: false },
+      { nome: "Transferido", selected: false },
+      { nome: "Suspenso", selected: false },
+      { nome: "Aposentado", selected: false },
+      { nome: "Afastado pelo INSS", selected: false },
+      { nome: "Licença-maternidade", selected: false },
+      { nome: "Não informado", selected: true }
+    ],
+    updatedAt: "-"
+  };
 }
 
 function alternarMenu() {
