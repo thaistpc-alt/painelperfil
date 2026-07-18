@@ -7,9 +7,12 @@ let dadosPatologias = null;
 let dadosAfastamentos = null;
 let dadosVacinas = null;
 let patTabelaBase = [];
+const VIEW_CACHE = {};
+let precargaIniciada = false;
+let tokenNavegacao = 0;
 
 const titulos = {
-  perfil: ["PAINEL PERFIL DE SAÚDE SESMT HRC", "Visão quantitativa dos dados de saúde ocupacional"],
+  perfil: ["Perfil de Saúde", "Visão quantitativa dos dados de saúde ocupacional"],
   patologias: ["Patologias", "Análise das patologias informadas pelos colaboradores"],
   afastamentos: ["Afastamentos", "Indicadores de afastamentos dos colaboradores"],
   vacinas: ["Vacinas", "Cobertura vacinal e acompanhamento de pendências"],
@@ -25,24 +28,87 @@ function configurarMenu() {
   document.querySelectorAll(".menu-item").forEach(btn => {
     btn.onclick = () => trocarPagina(btn.getAttribute("data-page"));
   });
+  try {
+    if (localStorage.getItem("perfilSaudeMenuRecolhido") === "1") {
+      document.getElementById("app").classList.add("menu-recolhido");
+    }
+  } catch (e) {}
+}
+
+function alternarMenu() {
+  const app = document.getElementById("app");
+  if (!app) return;
+  const recolhido = app.classList.toggle("menu-recolhido");
+  try { localStorage.setItem("perfilSaudeMenuRecolhido", recolhido ? "1" : "0"); } catch (e) {}
+  setTimeout(() => window.dispatchEvent(new Event("resize")), 240);
 }
 
 function trocarPagina(pagina) {
   paginaAtual = pagina || "perfil";
+  const paginaSolicitada = paginaAtual;
+  const meuToken = ++tokenNavegacao;
   document.querySelectorAll(".menu-item").forEach(btn => btn.classList.toggle("active", btn.getAttribute("data-page") === paginaAtual));
   const info = titulos[paginaAtual] || titulos.perfil;
   document.getElementById("tituloPagina").textContent = info[0];
   document.getElementById("subtituloPagina").textContent = info[1];
-  mostrarLoading("Carregando " + info[0] + "...");
 
+  if (VIEW_CACHE[paginaSolicitada]) {
+    document.getElementById("conteudo").innerHTML = VIEW_CACHE[paginaSolicitada];
+    esconderLoading();
+    carregarDadosPaginaAtual();
+    return;
+  }
+
+  mostrarLoading("Carregando " + info[0] + "...");
   google.script.run
     .withSuccessHandler(html => {
+      VIEW_CACHE[paginaSolicitada] = html;
+      if (meuToken !== tokenNavegacao || paginaAtual !== paginaSolicitada) return;
       document.getElementById("conteudo").innerHTML = html;
       esconderLoading();
       carregarDadosPaginaAtual();
     })
     .withFailureHandler(erroPortal)
-    .carregarView(paginaAtual);
+    .carregarView(paginaSolicitada);
+}
+
+
+function agendarPrecarregamento() {
+  if (precargaIniciada) return;
+  precargaIniciada = true;
+  setTimeout(() => {
+    precarregarViews(["patologias", "afastamentos", "vacinas", "acidentes"], 0);
+    precarregarDadosSecundarios();
+  }, 500);
+}
+function precarregarViews(fila, indice) {
+  if (indice >= fila.length) return;
+  const pagina = fila[indice];
+  if (VIEW_CACHE[pagina]) { precarregarViews(fila, indice + 1); return; }
+  google.script.run.withSuccessHandler(html => {
+    VIEW_CACHE[pagina] = html;
+    precarregarViews(fila, indice + 1);
+  }).withFailureHandler(() => precarregarViews(fila, indice + 1)).carregarView(pagina);
+}
+function precarregarDadosSecundarios() {
+  if (dadosPatologias) { precarregarAfastamentos(); return; }
+  google.script.run.withSuccessHandler(ret => {
+    dadosPatologias = ret || {};
+    precarregarAfastamentos();
+  }).withFailureHandler(precarregarAfastamentos).carregarPatologias();
+}
+function precarregarAfastamentos() {
+  if (dadosAfastamentos) { precarregarVacinas(); return; }
+  google.script.run.withSuccessHandler(ret => {
+    dadosAfastamentos = ret || {};
+    precarregarVacinas();
+  }).withFailureHandler(precarregarVacinas).carregarAfastamentos();
+}
+function precarregarVacinas() {
+  if (dadosVacinas) return;
+  google.script.run.withSuccessHandler(ret => {
+    dadosVacinas = ret || {};
+  }).withFailureHandler(() => {}).carregarVacinas();
 }
 
 function carregarDadosPaginaAtual() {
@@ -103,6 +169,7 @@ function carregarDadosPerfil(forcarAtualizacao) {
       dadosPerfil = ret || {};
       esconderLoading();
       renderizarPerfil();
+      agendarPrecarregamento();
     })
     .withFailureHandler(erroPortal)
     .carregarPerfilSaude();
@@ -970,7 +1037,20 @@ function renderizarTabelaVacinas() {
 }
 
 function baixarPendenciasVacinais() {
-  const lista = obterPendenciasVacinaisFiltradasParaTabela();
+  baixarVacinasPorTipo();
+}
+
+function baixarVacinasPorTipo() {
+  const tipo = document.getElementById("vacTipoExportacao")?.value || "geral";
+  const busca = normalizarTextoJS(document.getElementById("vacBuscaTabela")?.value || "");
+  const lista = (VAC_FILTRADOS || []).filter(item => {
+    if (tipo === "geral" && item.esquemaCompleto === "Completo") return false;
+    if (tipo === "dt" && item.dtCompleta === "Completa") return false;
+    if (tipo === "hep" && item.hepCompleta === "Completa") return false;
+    if (tipo === "covid" && item.covidCompleta === "Completa") return false;
+    if (!busca) return true;
+    return normalizarTextoJS([item.mat,item.nome,item.setor,item.funcao,item.sexo,item.esquemaCompleto,item.dtCompleta,item.hepCompleta,item.covidCompleta].join(" ")).indexOf(busca) !== -1;
+  });
   const cabecalho = ["Matrícula", "Nome", "Setor", "Função", "Sexo", "dT", "Hepatite B", "COVID", "Situação geral"];
   const linhas = lista.map(item => [
     item.mat,
@@ -995,7 +1075,8 @@ function baixarPendenciasVacinais() {
   const agora = new Date();
   const data = agora.getFullYear() + String(agora.getMonth()+1).padStart(2,"0") + String(agora.getDate()).padStart(2,"0");
   a.href = url;
-  a.download = "pendencias_vacinais_" + data + ".csv";
+  const nomesArquivo = { geral: "todas", dt: "dt", hep: "hepatite_b", covid: "covid" };
+  a.download = "pendencias_vacinais_" + (nomesArquivo[tipo] || "todas") + "_" + data + ".csv";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

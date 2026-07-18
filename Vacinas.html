@@ -57,7 +57,9 @@
     .vacinas-v55 .vac-tabela-oculta{display:none;margin-top:16px}
     .vacinas-v55 .vac-tabela-oculta.aberta{display:block}
     .vacinas-v55 .table-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}
-    .vacinas-v55 .table-tools input{min-width:360px;flex:1}
+    .vacinas-v55 .table-tools input{min-width:300px;flex:1}
+    .vacinas-v55 .vac-export-select{width:auto;min-width:190px;height:38px}
+    .vacinas-v55 .table-tools .btn-primary{height:38px;white-space:nowrap}
     .vacinas-v55 .table-wrapper{max-height:470px;overflow:auto}
     .vacinas-v55 table th{position:sticky;top:0;z-index:1;background:#f1f5f9}
     .vacinas-v55 .tooltip-box{display:none;position:fixed;z-index:9999;max-width:390px;background:#0f172a;color:#fff;border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.45;box-shadow:0 14px 35px rgba(15,23,42,.35);white-space:pre-line;pointer-events:none}
@@ -151,7 +153,7 @@
       <button class="btn-secondary" onclick="toggleTabelaVacinas()" id="vacBtnTabela">Consultar pendências vacinais</button>
     </div>
     <div id="vacAreaTabela" class="vac-tabela-oculta">
-      <div class="table-tools"><input id="vacBuscaTabela" placeholder="Pesquisar por matrícula, nome, setor, função ou situação" oninput="renderizarTabelaVacinas()"><button class="btn-secondary" onclick="limparPesquisaVacinas()">Limpar pesquisa</button><button class="btn-secondary" onclick="baixarPendenciasVacinais()">Baixar pendências</button></div>
+      <div class="table-tools"><input id="vacBuscaTabela" placeholder="Pesquisar por matrícula, nome, setor, função ou situação" oninput="renderizarTabelaVacinas()"><button class="btn-secondary" onclick="limparPesquisaVacinas()">Limpar pesquisa</button><select id="vacTipoExportacao" class="vac-export-select" title="Escolha o tipo de vacina para exportar"><option value="geral">Todas as pendências</option><option value="dt">dT</option><option value="hep">Hepatite B</option><option value="covid">COVID</option></select><button class="btn-primary" onclick="baixarVacinasPorTipo()">Exportar CSV</button></div>
       <div class="table-wrapper">
         <table id="vacTblPendencias">
           <thead><tr><th>Matrícula</th><th>Nome</th><th>Setor</th><th>Função</th><th>Sexo</th><th>dT</th><th>Hepatite B</th><th>COVID</th><th>Situação geral</th></tr></thead>

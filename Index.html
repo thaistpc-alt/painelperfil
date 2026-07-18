@@ -15,22 +15,25 @@
   <div id="app">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="logo-circle">PS</div>
-        <div><h1>PAINEL PERFIL DE SAÚDE</h1><span>SESMT HRC</span></div>
+        <div class="sidebar-brand"><h1>SESMT HRC</h1><span>Perfil de Saúde</span></div>
       </div>
       <nav class="menu">
-        <button class="menu-item active" data-page="perfil"><span>PS</span>Perfil de Saúde</button>
-        <button class="menu-item" data-page="patologias"><span>PT</span>Patologias</button>
-        <button class="menu-item" data-page="afastamentos"><span>AF</span>Afastamentos</button>
-        <button class="menu-item" data-page="vacinas"><span>VC</span>Vacinas</button>
-        <button class="menu-item" data-page="acidentes"><span>AB</span>Acidentes Mat. Biológico</button>
+        <small class="menu-section">VISÃO GERAL</small>
+        <button class="menu-item active" data-page="perfil"><span>PS</span><b>Perfil de Saúde</b></button>
+        <small class="menu-section">MONITORAMENTO</small>
+        <button class="menu-item" data-page="patologias"><span>PT</span><b>Patologias</b></button>
+        <button class="menu-item" data-page="afastamentos"><span>AF</span><b>Afastamentos</b></button>
+        <button class="menu-item" data-page="vacinas"><span>VC</span><b>Vacinas</b></button>
+        <button class="menu-item" data-page="acidentes"><span>AB</span><b>Acidentes Mat. Biológico</b></button>
       </nav>
-      <div class="sidebar-footer"><small>PAINEL PERFIL DE SAÚDE SESMT HRC</small><small>Versão 6.0</small></div>
+      <div class="sidebar-footer">
+        <button type="button" class="menu-collapse-btn" onclick="alternarMenu()" title="Recolher ou expandir menu"><span>«</span><b>Recolher menu</b></button>
+      </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
-        <div><h2 id="tituloPagina">PAINEL PERFIL DE SAÚDE SESMT HRC</h2><p id="subtituloPagina">Visão quantitativa dos dados de saúde ocupacional</p></div>
+        <div class="topbar-title"><small>PAINEL SESMT HRC</small><h2 id="tituloPagina">Perfil de Saúde</h2><p id="subtituloPagina">Visão quantitativa dos dados de saúde ocupacional</p></div>
         <div class="topbar-actions"><span id="atualizadoEm">Carregando...</span><button class="btn-secondary" onclick="recarregarPaginaAtual()">Atualizar</button></div>
       </header>
       <section id="loading" class="loading"><div class="spinner"></div><p>Carregando...</p></section>
