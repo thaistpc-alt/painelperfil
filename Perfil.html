@@ -1,0 +1,33 @@
+<div id="page-perfil">
+  <section class="macro-grid">
+    <div class="macro-card" id="cardColaboradores" title="">
+      <div class="macro-title">Total de colaboradores</div>
+      <div class="macro-row">
+        <div>
+          <div class="macro-number" id="cardTotalColaboradores">0</div>
+          <div class="macro-note">Considera todos, exceto desligados, transferidos e óbitos.</div>
+        </div>
+        <div class="sex-box">
+          <div class="sex-item"><div class="sex-icon">♀</div><div><div class="sex-value" id="pctFeminino">0,0%</div><div class="sex-label">Feminino</div></div></div>
+          <div class="sex-item"><div class="sex-icon">♂</div><div><div class="sex-value" id="pctMasculino">0,0%</div><div class="sex-label">Masculino</div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="macro-card blue">
+      <div class="macro-title">Total de colaboradores ativos</div>
+      <div class="macro-number" id="cardTotalAtivos">0</div>
+      <div class="macro-note">Somatório de Ativo + Ativo/Reabilitado.</div>
+    </div>
+  </section>
+
+  <section class="charts-grid">
+    <div class="card chart-card"><h3>Colaboradores com e sem patologias</h3><p id="categoriasPatologia">Categorias consideradas.</p><div id="chartPatologiaSimNao" class="chart"></div></div>
+    <div class="card chart-card"><h3>Patologias por família CID</h3><p>Passe o mouse nas barras para visualizar o descritivo da família.</p><div id="chartPatologias" class="chart"></div></div>
+    <div class="card chart-card"><h3>Afastamentos por família CID - <span id="anoAfastamentoPerfil"></span></h3><p>Consolidação do ano vigente.</p><div id="chartAfastamentosCid" class="chart"></div></div>
+    <div class="card chart-card"><h3>Patologias x Afastamentos - <span id="anoPatAfPerfil"></span></h3><p>Patologias em barras e afastamentos em linha.</p><div id="chartPatologiasAfastamentos" class="chart"></div></div>
+    <div class="card chart-card"><h3>Prática de atividade física</h3><p>Distribuição conforme registro no perfil de saúde.</p><div id="chartAtividadeFisica" class="chart"></div></div>
+    <div class="card chart-card"><h3>Tabagista</h3><p>Coluna O da aba BD PATOLOGIAS.</p><div id="chartTabagismo" class="chart"></div></div>
+    <div class="card chart-card"><h3>Vacinação completa</h3><p>Coluna D da aba BD VACINAS.</p><div id="chartVacinas" class="chart"></div></div>
+    <div class="card chart-card"><h3>Vacinas atualizadas por tipo</h3><p>Atualizadas x pendências por tipo.</p><div id="chartVacinasPorTipo" class="chart"></div></div>
+  </section>
+</div>

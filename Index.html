@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAINEL PERFIL DE SAÚDE SESMT HRC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <?!= include("Style"); ?>
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-circle">PS</div>
+        <div><h1>PAINEL PERFIL DE SAÚDE</h1><span>SESMT HRC</span></div>
+      </div>
+      <nav class="menu">
+        <button class="menu-item active" data-page="perfil"><span>PS</span>Perfil de Saúde</button>
+        <button class="menu-item" data-page="patologias"><span>PT</span>Patologias</button>
+        <button class="menu-item" data-page="afastamentos"><span>AF</span>Afastamentos</button>
+        <button class="menu-item" data-page="vacinas"><span>VC</span>Vacinas</button>
+        <button class="menu-item" data-page="acidentes"><span>AB</span>Acidentes Mat. Biológico</button>
+      </nav>
+      <div class="sidebar-footer"><small>PAINEL PERFIL DE SAÚDE SESMT HRC</small><small>Versão 6.0</small></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><h2 id="tituloPagina">PAINEL PERFIL DE SAÚDE SESMT HRC</h2><p id="subtituloPagina">Visão quantitativa dos dados de saúde ocupacional</p></div>
+        <div class="topbar-actions"><span id="atualizadoEm">Carregando...</span><button class="btn-secondary" onclick="recarregarPaginaAtual()">Atualizar</button></div>
+      </header>
+      <section id="loading" class="loading"><div class="spinner"></div><p>Carregando...</p></section>
+      <section id="conteudo" class="content hidden"></section>
+    </main>
+  </div>
+  <?!= include("JavaScript"); ?>
+</body>
+</html>

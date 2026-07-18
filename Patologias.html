@@ -1,0 +1,212 @@
+<div id="page-patologias-v41" class="patologias-v41">
+  <style>
+    .patologias-v41 .filter-panel{
+      display:grid;
+      grid-template-columns:1fr 1fr 180px 150px;
+      gap:12px;
+      align-items:end;
+      margin-bottom:18px;
+    }
+    .patologias-v41 .filter-group{position:relative;min-width:0}
+    .patologias-v41 .filter-group label{display:block;margin-bottom:6px;font-weight:800;color:#475569;font-size:12px}
+    .patologias-v41 .multi-btn,.patologias-v41 select,.patologias-v41 input{width:100%;height:40px;border:1px solid #dbe3ef;border-radius:10px;background:#fff;padding:0 12px;color:#0f172a;font-size:13px}
+    .patologias-v41 .multi-btn{text-align:left;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+    .patologias-v41 .multi-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .patologias-v41 .multi-panel{display:none;position:absolute;top:64px;left:0;right:0;z-index:50;background:#fff;border:1px solid #dbe3ef;border-radius:12px;box-shadow:0 18px 45px rgba(15,23,42,.18);padding:10px;max-height:320px;overflow:auto}
+    .patologias-v41 .multi-panel.open{display:block}
+    .patologias-v41 .multi-search{margin-bottom:8px;height:34px}
+    .patologias-v41 .multi-actions{display:flex;gap:8px;margin-bottom:8px}
+    .patologias-v41 .multi-actions button{border:0;border-radius:8px;background:#e2e8f0;padding:7px 10px;font-weight:800;color:#334155;cursor:pointer;font-size:12px}
+    .patologias-v41 .check-row{display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px;font-size:12px;color:#0f172a;cursor:pointer}
+    .patologias-v41 .check-row:hover{background:#f1f5f9}
+    .patologias-v41 .check-row input{width:15px;height:15px;padding:0}
+
+    .patologias-v41 .cards-grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(220px,1fr));
+      gap:14px;
+      margin-bottom:18px;
+      max-width:980px;
+    }
+
+    .pat41-dashboard-grid{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:18px;
+      margin-bottom:18px;
+    }
+
+    .pat41-card-familias{
+      min-height:410px;
+    }
+
+    .patologias-v41 .chart-large{
+      height:320px;
+      width:100%;
+    }
+
+    .patologias-v41 .vertical-chart{
+      height:286px;
+      display:flex;
+      align-items:flex-end;
+      gap:18px;
+      border-left:1px solid #cbd5e1;
+      border-bottom:1px solid #cbd5e1;
+      padding:14px 18px 42px 18px;
+      overflow-x:visible;
+      position:relative;
+    }
+    .patologias-v41 .vbar-item{height:100%;flex:1;min-width:44px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;position:relative}
+    .patologias-v41 .vbar{width:46px;max-width:100%;background:linear-gradient(180deg,#2563eb,#1d4ed8);border-radius:8px 8px 0 0;min-height:4px;cursor:pointer;box-shadow:0 8px 14px rgba(37,99,235,.16)}
+    .patologias-v41 .vbar-value{font-size:12px;font-weight:900;color:#0f172a;margin-bottom:6px}
+    .patologias-v41 .vbar-label{position:absolute;bottom:-34px;font-size:13px;font-weight:900;color:#334155;white-space:nowrap}
+
+    .pat41-row-secundaria{
+      display:grid;
+      grid-template-columns:minmax(360px,.9fr) minmax(420px,1.1fr);
+      gap:18px;
+      margin-bottom:18px;
+      align-items:stretch;
+    }
+    .pat41-card-topcids{min-height:330px}
+
+    .patologias-v41 .bar-list{display:grid;gap:10px;padding-top:12px}
+    .patologias-v41 .bar-row{display:grid;grid-template-columns:minmax(70px,100px) 1fr 55px;align-items:center;gap:10px;font-size:12px}
+    .patologias-v41 .bar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;font-weight:800}
+    .patologias-v41 .bar-track{height:14px;background:#e2e8f0;border-radius:999px;overflow:hidden}
+    .patologias-v41 .bar-fill{height:100%;background:linear-gradient(90deg,#2563eb,#1d4ed8);border-radius:999px}
+    .patologias-v41 .bar-value{text-align:right;font-weight:900;color:#0f172a}
+
+    .pat41-info-card{
+      background:linear-gradient(135deg,#ffffff,#f8fafc);
+      border:1px solid #dbe3ef;
+      border-radius:18px;
+      box-shadow:0 12px 28px rgba(15,23,42,.06);
+      padding:18px;
+      min-height:330px;
+    }
+    .pat41-info-card h3{margin:0 0 8px;font-size:16px}
+    .pat41-info-card p{margin:0 0 12px;font-size:12px;color:#475569;line-height:1.45}
+    .pat41-info-list{display:grid;gap:10px;margin-top:14px}
+    .pat41-info-item{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:10px}
+    .pat41-info-icon{width:28px;height:28px;border-radius:10px;background:#e0f2fe;color:#0369a1;display:flex;align-items:center;justify-content:center;font-weight:900;flex:0 0 auto}
+    .pat41-info-item strong{display:block;font-size:13px;color:#0f172a;margin-bottom:2px}
+    .pat41-info-item span{display:block;font-size:12px;color:#475569;line-height:1.35}
+    .pat41-resumo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+    .pat41-resumo-box{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px}
+    .pat41-resumo-box span{display:block;font-size:11px;font-weight:900;text-transform:uppercase;color:#64748b;line-height:1.25}
+    .pat41-resumo-box strong{display:block;margin-top:8px;font-size:26px;line-height:1;color:#0f172a}
+    .pat41-resumo-box small{display:block;margin-top:7px;font-size:12px;color:#475569;line-height:1.35}
+
+    .pat41-area-restrita{border:1px dashed #cbd5e1;background:#f8fafc;margin-bottom:28px}
+    .pat41-restrito-header{display:flex;justify-content:space-between;gap:16px;align-items:center}
+    .pat41-restrito-header h3{display:flex;align-items:center;gap:8px}
+    .pat41-tabela-oculta{display:none;margin-top:16px}
+    .pat41-tabela-oculta.aberta{display:block}
+    .patologias-v41 .table-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}
+    .patologias-v41 .table-tools input{min-width:320px;flex:1}
+    .patologias-v41 .table-wrapper{max-height:560px;overflow:auto;background:#fff;border-radius:12px;border:1px solid #e2e8f0}
+    .patologias-v41 table th{position:sticky;top:0;z-index:1;background:#f1f5f9}
+    .patologias-v41 .mini-muted{font-size:12px;color:#64748b}
+    .patologias-v41 .tooltip-box{display:none;position:fixed;z-index:9999;max-width:380px;background:#0f172a;color:#fff;border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.45;box-shadow:0 14px 35px rgba(15,23,42,.35);white-space:pre-line;pointer-events:none}
+
+    @media(max-width:1200px){
+      .patologias-v41 .filter-panel{grid-template-columns:1fr 1fr}
+      .patologias-v41 .cards-grid{grid-template-columns:1fr 1fr;max-width:100%}
+      .pat41-row-secundaria{grid-template-columns:1fr}
+      .patologias-v41 .vertical-chart{overflow-x:auto}
+    }
+    @media(max-width:900px){
+      .patologias-v41 .filter-panel{grid-template-columns:1fr}
+      .patologias-v41 .cards-grid{grid-template-columns:1fr}
+      .pat41-restrito-header{flex-direction:column;align-items:flex-start}
+    }
+  </style>
+
+  <section class="filter-panel">
+    <div class="filter-group">
+      <label>Setor</label>
+      <button type="button" class="multi-btn" id="pat41BtnSetor" onclick="toggleMultiPat41('setor')"><span>Todos</span><b>▼</b></button>
+      <div class="multi-panel" id="pat41PanelSetor">
+        <input class="multi-search" id="pat41BuscaSetor" placeholder="Pesquisar setor" oninput="filtrarOpcoesPat41('setor')">
+        <div class="multi-actions"><button type="button" onclick="selecionarTodosPat41('setor',true)">Marcar todos</button><button type="button" onclick="selecionarTodosPat41('setor',false)">Limpar</button></div>
+        <div id="pat41OpcoesSetor"></div>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>Função</label>
+      <button type="button" class="multi-btn" id="pat41BtnFuncao" onclick="toggleMultiPat41('funcao')"><span>Todas</span><b>▼</b></button>
+      <div class="multi-panel" id="pat41PanelFuncao">
+        <input class="multi-search" id="pat41BuscaFuncao" placeholder="Pesquisar função" oninput="filtrarOpcoesPat41('funcao')">
+        <div class="multi-actions"><button type="button" onclick="selecionarTodosPat41('funcao',true)">Marcar todas</button><button type="button" onclick="selecionarTodosPat41('funcao',false)">Limpar</button></div>
+        <div id="pat41OpcoesFuncao"></div>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>Sexo</label>
+      <select id="pat41FiltroSexo" onchange="aplicarFiltrosPat41()"><option value="">Todos</option></select>
+    </div>
+    <button class="btn-secondary" onclick="limparFiltrosPat41()">Limpar filtros</button>
+  </section>
+
+  <section class="cards-grid">
+    <div class="kpi-card"><span>Colaboradores com CID informado</span><strong id="pat41CardCom">0</strong><small id="pat41PctCom">0,0% dos analisados</small></div>
+    <div class="kpi-card"><span>Total de patologias</span><strong id="pat41CardQtd">0</strong><small>CIDs registrados nas colunas D:H</small></div>
+    <div class="kpi-card"><span>Família CID predominante</span><strong id="pat41CardTopFamilia">-</strong><small id="pat41TopFamiliaDesc">-</small></div>
+  </section>
+
+  <section class="pat41-dashboard-grid">
+    <div class="card chart-card pat41-card-familias">
+      <h3>Patologias por família CID</h3>
+      <p>Considera apenas colaboradores válidos e CIDs preenchidos nas colunas D, E, F, G e H. Passe o mouse sobre a barra para ver os CIDs da família.</p>
+      <div id="pat41ChartFamilias" class="chart-large"></div>
+    </div>
+  </section>
+
+  <section class="pat41-row-secundaria">
+    <div class="card chart-card pat41-card-topcids">
+      <h3>Top 10 CIDs</h3>
+      <p>CIDs mais frequentes na BD PATOLOGIAS.</p>
+      <div id="pat41ChartTopCids" class="chart"></div>
+    </div>
+
+    <div class="pat41-info-card">
+      <h3>Resumo epidemiológico</h3>
+      <p>Indicadores complementares calculados após os filtros aplicados.</p>
+      <div class="pat41-resumo-grid">
+        <div class="pat41-resumo-box"><span>Média de CIDs</span><strong id="pat41ResumoMedia">0,0</strong><small>por colaborador com CID informado</small></div>
+        <div class="pat41-resumo-box"><span>2 ou mais CIDs</span><strong id="pat41ResumoMultiplos">0</strong><small>colaboradores com múltiplos registros</small></div>
+        <div class="pat41-resumo-box"><span>CID predominante</span><strong id="pat41ResumoCidTop">-</strong><small id="pat41ResumoCidTopDesc">-</small></div>
+        <div class="pat41-resumo-box"><span>Famílias CID</span><strong id="pat41ResumoFamilias">0</strong><small>famílias identificadas nos filtros</small></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card chart-card pat41-area-restrita">
+    <div class="pat41-restrito-header">
+      <div>
+        <h3>🔒 Consulta restrita — colaboradores com patologias</h3>
+        <p class="mini-muted">A tabela fica oculta por padrão por conter informação sensível de saúde.</p>
+      </div>
+      <button class="btn-secondary" id="btnToggleTabelaPat41" onclick="const area=document.getElementById('areaTabelaPat41');const aberta=area.classList.toggle('aberta');this.textContent=aberta?'Ocultar consulta restrita':'Exibir consulta restrita';">
+        Exibir consulta restrita
+      </button>
+    </div>
+
+    <div id="areaTabelaPat41" class="pat41-tabela-oculta">
+      <div class="table-tools">
+        <input id="pat41BuscaTabela" type="text" placeholder="Pesquisar por matrícula, nome, sexo, idade, setor, função, CID ou família" oninput="renderizarTabelaPat41()">
+        <button class="btn-secondary" onclick="limparPesquisaTabelaPat41()">Limpar pesquisa</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="pat41TblDetalhe">
+          <thead><tr><th>Matrícula</th><th>Nome</th><th>Sexo</th><th>Idade</th><th>Setor</th><th>Função</th><th>Total de patologias</th><th>CIDs</th><th>Famílias CID</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="text-muted" id="pat41TabelaResumo"></p>
+    </div>
+  </section>
+
+  <div id="pat41Tooltip" class="tooltip-box"></div>
+</div>
