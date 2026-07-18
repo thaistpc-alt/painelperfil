@@ -6,7 +6,7 @@
 
 const CONFIG = {
   spreadsheetId: "1ap49yRtC1HfT89yYFMmHPXZlvUyLGqeEGx9LuwoD-rY",
-  cachePrefix: "PAINEL_PERFIL_SAUDE_V62_",
+  cachePrefix: "PAINEL_PERFIL_SAUDE_V63_",
   cacheTime: 600,
   sheets: {
     perfil: "BD PERFIL",
@@ -859,7 +859,7 @@ function normalizarRegistroPatologiaV41(item) {
     idade: item.idade || "",
     setor: limparTexto(item.setor),
     funcao: limparTexto(item.funcao),
-    status: limparTexto(item.status),
+    status: limparTexto(item.status) || "Não informado",
     possuiPatologia: item.possuiPatologia === "Sim" ? "Sim" : "Não",
     cids: cids,
     familiasCid: familias,
@@ -932,12 +932,14 @@ function carregarAfastamentos() {
   const funcoesMap = {};
   const sexosMap = {};
   const anosMap = {};
+  const statusMap = {};
 
   afastamentos.forEach(item => {
     if (item.setor) setoresMap[item.setor] = true;
     if (item.funcao) funcoesMap[item.funcao] = true;
     if (item.sexo) sexosMap[item.sexo] = true;
     if (item.ano) anosMap[item.ano] = true;
+    if (item.status) statusMap[item.status] = true;
   });
 
   const patologiasComparativo = complementarComPerfil(extrairPatologias(), mapaPerfil)
@@ -952,6 +954,7 @@ function carregarAfastamentos() {
       setores: ordenarLista(Object.keys(setoresMap)),
       funcoes: ordenarLista(Object.keys(funcoesMap)),
       sexos: ordenarLista(Object.keys(sexosMap)),
+      status: ordenarLista(Object.keys(statusMap)),
       anos: Object.keys(anosMap).sort((a, b) => Number(b) - Number(a))
     },
     registros: afastamentos,
@@ -970,7 +973,7 @@ function normalizarRegistroAfastamentoV50(item) {
     nome: limparTexto(item.nome),
     sexo: limparTexto(item.sexo),
     idade: item.idade || "",
-    status: limparTexto(item.status),
+    status: limparTexto(item.status) || "Não informado",
     setor: limparTexto(item.setor),
     funcao: limparTexto(item.funcao),
     inicio: item.inicio || "",
@@ -1064,15 +1067,16 @@ function carregarVacinas() {
   const mapaPerfil = criarMapaPerfil(perfil);
 
   const vacinas = complementarComPerfil(extrairVacinas(), mapaPerfil)
-    .filter(item => considerarNaAnaliseVacinas(item.status))
+    .filter(item => item.nome || item.mat)
     .map(normalizarRegistroVacinaV55);
 
-  const setoresMap = {}, funcoesMap = {}, sexosMap = {}, situacoesMap = {};
+  const setoresMap = {}, funcoesMap = {}, sexosMap = {}, situacoesMap = {}, statusMap = {};
   vacinas.forEach(item => {
     if (item.setor) setoresMap[item.setor] = true;
     if (item.funcao) funcoesMap[item.funcao] = true;
     if (item.sexo) sexosMap[item.sexo] = true;
     if (item.esquemaCompleto) situacoesMap[item.esquemaCompleto] = true;
+    if (item.status) statusMap[item.status] = true;
   });
 
   const retorno = {
@@ -1081,6 +1085,7 @@ function carregarVacinas() {
       setores: ordenarLista(Object.keys(setoresMap)),
       funcoes: ordenarLista(Object.keys(funcoesMap)),
       sexos: ordenarLista(Object.keys(sexosMap)),
+      status: ordenarLista(Object.keys(statusMap)),
       situacoes: ordenarLista(Object.keys(situacoesMap))
     },
     registros: vacinas,
@@ -1095,7 +1100,7 @@ function normalizarRegistroVacinaV55(item) {
   return {
     mat: limparTexto(item.mat),
     nome: limparTexto(item.nome),
-    status: limparTexto(item.status),
+    status: limparTexto(item.status) || "Não informado",
     setor: limparTexto(item.setor),
     funcao: limparTexto(item.funcao),
     sexo: limparTexto(item.sexo) || "Não informado",

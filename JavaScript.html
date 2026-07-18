@@ -168,6 +168,34 @@ function addGrupoJS(obj,chave,qtd){ const k=chave||"Não informado"; obj[k]=(obj
 function toArrayJS(obj){ return Object.keys(obj).map(k=>({nome:k,quantidade:obj[k]})).sort((a,b)=>b.quantidade-a.quantidade); }
 function familiaCidJS(cid){ const m=String(cid||"").toUpperCase().match(/[A-Z]/); return m?m[0]:""; }
 function classSexo(s){ const v=normalizarTextoJS(s); if(v==="F"||v==="FEMININO"||v==="FEMININA")return"Feminino"; if(v==="M"||v==="MASCULINO"||v==="MASCULINA")return"Masculino"; return s || "Não informado"; }
+function statusExcluidoPadrao(status) {
+  const s = normalizarTextoJS(status);
+  return s.indexOf("DESLIG") !== -1 ||
+    s.indexOf("APOSENT") !== -1 ||
+    s.indexOf("OBITO") !== -1 ||
+    s.indexOf("FALECID") !== -1 ||
+    (s.indexOf("AFASTADO") !== -1 && s.indexOf("INSS") !== -1);
+}
+function montarFiltroStatus(prefixo, lista, callbackNome) {
+  const alvo = document.getElementById(prefixo + "OpcoesStatus");
+  if (!alvo) return;
+  alvo.innerHTML = (lista || []).map(status => {
+    const checked = statusExcluidoPadrao(status) ? "" : " checked";
+    return '<label><input type="checkbox" value="' + escAttr(status) + '"' + checked + ' onchange="' + callbackNome + '()"><span>' + esc(status) + '</span></label>';
+  }).join("");
+}
+function statusSelecionados(prefixo) {
+  const alvo = document.getElementById(prefixo + "OpcoesStatus");
+  if (!alvo) return [];
+  return Array.from(alvo.querySelectorAll("input[type='checkbox']:checked")).map(input => input.value);
+}
+function resetarFiltroStatus(prefixo) {
+  const alvo = document.getElementById(prefixo + "OpcoesStatus");
+  if (!alvo) return;
+  alvo.querySelectorAll("input[type='checkbox']").forEach(input => {
+    input.checked = !statusExcluidoPadrao(input.value);
+  });
+}
 
 /* PERFIL */
 function carregarDadosPerfil(forcarAtualizacao) {
@@ -281,7 +309,7 @@ function renderizarTabelaPat41() {
 function limparPesquisaTabelaPat41(){setTextValue("pat41BuscaTabela",""); renderizarTabelaPat41();}
 
 /* AFASTAMENTOS */
-let AF50_DADOS={registros:[],filtros:{setores:[],funcoes:[],sexos:[],anos:[]},anoVigente:new Date().getFullYear()};
+let AF50_DADOS={registros:[],filtros:{setores:[],funcoes:[],sexos:[],status:[],anos:[]},anoVigente:new Date().getFullYear()};
 let AF50_FILTRADOS=[];
 
 function carregarDadosAfastamentos(forcarAtualizacao){
@@ -311,6 +339,7 @@ function prepararAfastamentos(){
   montarOpcoesAf("funcao",(d.filtros||{}).funcoes||[]);
   preencherSelect("afFiltroSexo",(d.filtros||{}).sexos||[],"Todos");
   preencherSelect("afFiltroAno",(d.filtros||{}).anos||[],"Todos");
+  montarFiltroStatus("af",(d.filtros||{}).status||[],"aplicarFiltrosAf");
   const anoVig=String(d.anoVigente||new Date().getFullYear());
   if(((d.filtros||{}).anos||[]).indexOf(anoVig)!==-1) document.getElementById("afFiltroAno").value=anoVig;
   aplicarFiltrosAf();
@@ -322,14 +351,16 @@ function selecionarTodosAf(tipo,marcar){selecionarTodosGenerico(tipo,marcar,"af"
 function filtrarOpcoesAf(tipo){filtrarOpcoesGenerico(tipo,"af");}
 function selecionadosAf(tipo){return selecionadosGenerico(tipo,"af");}
 function atualizarBotoesAf(){atualizarBotoesGenerico("af","Todos","Todas");}
-function limparFiltrosAf(){limparFiltrosGenerico("af"); setTextValue("afFiltroSexo",""); setTextValue("afFiltroAno",""); aplicarFiltrosAf();}
+function limparFiltrosAf(){limparFiltrosGenerico("af"); setTextValue("afFiltroSexo",""); setTextValue("afFiltroAno",""); resetarFiltroStatus("af"); aplicarFiltrosAf();}
 
 function aplicarFiltrosAf(){
   const setores=selecionadosAf("setor"), funcoes=selecionadosAf("funcao"), sexo=document.getElementById("afFiltroSexo")?.value||"", ano=document.getElementById("afFiltroAno")?.value||"";
+  const status=statusSelecionados("af");
   AF50_FILTRADOS=(AF50_DADOS.registros||[]).filter(item=>{
     if(setores.length&&setores.indexOf(item.setor)===-1)return false;
     if(funcoes.length&&funcoes.indexOf(item.funcao)===-1)return false;
     if(sexo&&item.sexo!==sexo)return false;
+    if(status.indexOf(item.status)===-1)return false;
     if(ano&&String(item.ano)!==String(ano))return false;
     return true;
   });
@@ -530,7 +561,7 @@ function descricaoCidAfastamento(cid){
 
 
 /* VACINAS - MÓDULO V5.5 */
-let VAC_DADOS = { registros: [], filtros: { setores: [], funcoes: [], sexos: [], situacoes: [] } };
+let VAC_DADOS = { registros: [], filtros: { setores: [], funcoes: [], sexos: [], status: [], situacoes: [] } };
 let VAC_FILTRADOS = [];
 let VAC_TABELA_BASE = [];
 let VAC_TABELA_ORDENACAO = { campo: "nome", direcao: "asc" };
@@ -637,7 +668,7 @@ function limparFiltrosVacinas() {
   setTextValue("vacFiltroSexo", "");
   setTextValue("vacFiltroSituacao", "");
   setTextValue("vacBuscaTabela", "");
-  setTextValue("vacFiltroStatusTabela", "");
+  resetarFiltroStatus("vac");
   aplicarFiltrosVacinas();
 }
 
@@ -646,11 +677,13 @@ function aplicarFiltrosVacinas() {
   const funcoes = selecionadosVac("funcao");
   const sexo = document.getElementById("vacFiltroSexo")?.value || "";
   const situacao = document.getElementById("vacFiltroSituacao")?.value || "";
+  const status = statusSelecionados("vac");
 
   VAC_FILTRADOS = (VAC_DADOS.registros || []).filter(item => {
     if (setores.length && setores.indexOf(item.setor) === -1) return false;
     if (funcoes.length && funcoes.indexOf(item.funcao) === -1) return false;
     if (sexo && item.sexo !== sexo) return false;
+    if (status.indexOf(item.status) === -1) return false;
     if (situacao && item.esquemaCompleto !== situacao) return false;
     return true;
   });
@@ -875,17 +908,10 @@ function prepararVacinas() {
   montarOpcoesVac("funcao", (d.filtros || {}).funcoes || Array.from(new Set(registros.map(i => i.funcao).filter(Boolean))).sort());
   preencherSelect("vacFiltroSexo", (d.filtros || {}).sexos || Array.from(new Set(registros.map(i => i.sexo).filter(Boolean))).sort(), "Todos");
   preencherSelect("vacFiltroSituacao", (d.filtros || {}).situacoes || ["Completo", "Incompleto"], "Todas");
-  preencherFiltroStatusTabelaVacinas(registros);
+  montarFiltroStatus("vac", (d.filtros || {}).status || Array.from(new Set(registros.map(i => i.status).filter(Boolean))).sort(), "aplicarFiltrosVacinas");
 
   configurarPeriodoDtVacinas();
   aplicarFiltrosVacinas();
-}
-
-function preencherFiltroStatusTabelaVacinas(registros) {
-  const atual = document.getElementById("vacFiltroStatusTabela")?.value || "";
-  const status = Array.from(new Set((registros || []).map(item => item.status).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  preencherSelect("vacFiltroStatusTabela", status, "Todos os status");
-  if (atual && status.indexOf(atual) !== -1) setTextValue("vacFiltroStatusTabela", atual);
 }
 
 function configurarPeriodoDtVacinas() {
@@ -911,11 +937,13 @@ function aplicarFiltrosVacinas() {
   const funcoes = selecionadosVac("funcao");
   const sexo = document.getElementById("vacFiltroSexo")?.value || "";
   const situacao = document.getElementById("vacFiltroSituacao")?.value || "";
+  const status = statusSelecionados("vac");
 
   VAC_FILTRADOS = (VAC_DADOS.registros || []).filter(item => {
     if (setores.length && setores.indexOf(item.setor) === -1) return false;
     if (funcoes.length && funcoes.indexOf(item.funcao) === -1) return false;
     if (sexo && item.sexo !== sexo) return false;
+    if (status.indexOf(item.status) === -1) return false;
     if (situacao && item.esquemaCompleto !== situacao) return false;
     return true;
   });
@@ -1035,9 +1063,7 @@ function agruparVacinasMes(registros) {
 
 function obterPendenciasVacinaisFiltradasParaTabela() {
   const busca = normalizarTextoJS(document.getElementById("vacBuscaTabela")?.value || "");
-  const status = document.getElementById("vacFiltroStatusTabela")?.value || "";
   return (VAC_TABELA_BASE || []).filter(item => {
-    if (status && item.status !== status) return false;
     if (!busca) return true;
     const texto = normalizarTextoJS([
       item.mat,
@@ -1103,9 +1129,7 @@ function baixarPendenciasVacinais() {
 function baixarVacinasPorTipo() {
   const tipo = document.getElementById("vacTipoExportacao")?.value || "geral";
   const busca = normalizarTextoJS(document.getElementById("vacBuscaTabela")?.value || "");
-  const status = document.getElementById("vacFiltroStatusTabela")?.value || "";
   const lista = (VAC_FILTRADOS || []).filter(item => {
-    if (status && item.status !== status) return false;
     if (tipo === "geral" && item.esquemaCompleto === "Completo") return false;
     if (tipo === "dt" && item.dtCompleta === "Completa") return false;
     if (tipo === "hep" && item.hepCompleta === "Completa") return false;

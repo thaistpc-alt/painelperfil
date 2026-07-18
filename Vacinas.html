@@ -74,6 +74,10 @@
     .vacinas-v55 .vac-date-tools .filter-group{min-width:180px}
     .vacinas-v55 .vac-date-tools button{height:38px}
     .vacinas-v55 .vac-dt-card{background:linear-gradient(135deg,#fff,#f8fafc)}
+    .vacinas-v55 .vac-status-filter{grid-column:1 / -1}
+    .vacinas-v55 .status-checks{display:flex;gap:8px;flex-wrap:wrap;padding-top:2px}
+    .vacinas-v55 .status-checks label{display:inline-flex;align-items:center;gap:7px;border:1px solid #dbe3ef;border-radius:999px;background:#fff;padding:7px 10px;font-size:12px;font-weight:800;color:#334155;text-transform:none;letter-spacing:0;cursor:pointer}
+    .vacinas-v55 .status-checks input{width:14px;height:14px;padding:0}
     @media(max-width:1400px){.vacinas-v55 .vac-kpi-grid{grid-template-columns:repeat(4,1fr)}.vacinas-v55 .vac-filter-panel{grid-template-columns:1fr 1fr 1fr}.vacinas-v55 .vac-grid-2,.vacinas-v55 .vac-grid-2-eq{grid-template-columns:1fr}}
     @media(max-width:900px){.vacinas-v55 .vac-kpi-grid,.vacinas-v55 .vac-filter-panel{grid-template-columns:1fr}.vacinas-v55 .vac-group-chart{overflow-x:auto}.vacinas-v55 .vac-month{min-width:44px}}
   </style>
@@ -100,6 +104,7 @@
     <div class="filter-group"><label>Sexo</label><select id="vacFiltroSexo" onchange="aplicarFiltrosVacinas()"><option value="">Todos</option></select></div>
     <div class="filter-group"><label>Situação vacinal</label><select id="vacFiltroSituacao" onchange="aplicarFiltrosVacinas()"><option value="">Todas</option></select></div>
     <button class="btn-secondary" onclick="limparFiltrosVacinas()">Limpar filtros</button>
+    <div class="filter-group vac-status-filter"><label>Status do colaborador</label><div id="vacOpcoesStatus" class="status-checks"></div></div>
   </section>
 
   <section class="vac-kpi-grid">
@@ -155,7 +160,6 @@
     <div id="vacAreaTabela" class="vac-tabela-oculta">
       <div class="table-tools">
         <input id="vacBuscaTabela" placeholder="Pesquisar por matrícula, nome, setor, função ou situação" oninput="renderizarTabelaVacinas()">
-        <select id="vacFiltroStatusTabela" class="vac-status-select" onchange="renderizarTabelaVacinas()" title="Filtrar por status do colaborador"><option value="">Todos os status</option></select>
         <button class="btn-secondary" onclick="limparPesquisaVacinas()">Limpar pesquisa</button>
         <select id="vacTipoExportacao" class="vac-export-select" title="Escolha o tipo de vacina para exportar"><option value="geral">Todas as pendências</option><option value="dt">dT</option><option value="hep">Hepatite B</option><option value="covid">COVID</option></select>
         <button class="btn-primary" onclick="baixarVacinasPorTipo()">Exportar CSV</button>
