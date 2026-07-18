@@ -1,4 +1,4 @@
-let SS_CACHE_PERFIL_SAUDE = null;
+var SS_CACHE_PERFIL_SAUDE = null;
 
 function getSpreadsheet() {
   if (!SS_CACHE_PERFIL_SAUDE) SS_CACHE_PERFIL_SAUDE = SpreadsheetApp.openById(CONFIG.spreadsheetId);

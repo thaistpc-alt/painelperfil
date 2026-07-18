@@ -1,4 +1,4 @@
-const CONFIG = {
+var CONFIG = {
   spreadsheetId: "1ap49yRtC1HfT89yYFMmHPXZlvUyLGqeEGx9LuwoD-rY",
   cachePrefix: "PAINEL_PERFIL_SAUDE_V80_",
   cacheTime: 300,
