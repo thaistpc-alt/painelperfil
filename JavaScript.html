@@ -20,22 +20,33 @@ const APP = {
 document.addEventListener("DOMContentLoaded", iniciarPortal);
 
 function iniciarPortal() {
-  document.querySelectorAll(".menu-item").forEach(btn => {
-    btn.addEventListener("click", () => trocarPagina(btn.getAttribute("data-page")));
+  document.querySelectorAll(".menu-item").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      trocarPagina(btn.getAttribute("data-page"));
+    });
   });
+
   document.addEventListener("click", fecharFiltrosAoClicarFora);
+
   try {
-    if (localStorage.getItem("perfilSaudeMenuRecolhido") === "1") document.getElementById("app").classList.add("menu-recolhido");
+    if (localStorage.getItem("perfilSaudeMenuRecolhido") === "1") {
+      document.getElementById("app").classList.add("menu-recolhido");
+    }
   } catch (e) {}
+
   atualizarBotaoMenuRecolhido();
   mostrarLoading("Carregando configurações...");
-  google.script.run.withSuccessHandler(ret => {
-    APP.config = ret || {};
-    trocarPagina("perfil");
-  }).withFailureHandler(erro => {
-    APP.config = configuracaoFallback();
-    trocarPagina("perfil");
-  }).carregarConfiguracoes();
+
+  google.script.run
+    .withSuccessHandler(function(ret) {
+      APP.config = ret || {};
+      trocarPagina("perfil");
+    })
+    .withFailureHandler(function() {
+      APP.config = configuracaoFallback();
+      trocarPagina("perfil");
+    })
+    .carregarConfiguracoes();
 }
 
 function configuracaoFallback() {
@@ -52,7 +63,7 @@ function configuracaoFallback() {
       { nome: "Aposentado", selected: false },
       { nome: "Afastado pelo INSS", selected: false },
       { nome: "Licença-maternidade", selected: false },
-      { nome: "Não informado", selected: true }
+      { nome: "Não informado", selected: false }
     ],
     updatedAt: "-"
   };
@@ -60,42 +71,66 @@ function configuracaoFallback() {
 
 function alternarMenu() {
   const app = document.getElementById("app");
+  if (!app) return;
+
   const recolhido = app.classList.toggle("menu-recolhido");
-  try { localStorage.setItem("perfilSaudeMenuRecolhido", recolhido ? "1" : "0"); } catch (e) {}
+
+  try {
+    localStorage.setItem("perfilSaudeMenuRecolhido", recolhido ? "1" : "0");
+  } catch (e) {}
+
   atualizarBotaoMenuRecolhido();
 }
 
 function atualizarBotaoMenuRecolhido() {
   const app = document.getElementById("app");
   const btn = document.querySelector(".menu-collapse-btn");
+
   if (!app || !btn) return;
+
   const recolhido = app.classList.contains("menu-recolhido");
   const span = btn.querySelector("span");
   const text = btn.querySelector("b");
+
   if (span) span.textContent = recolhido ? "›" : "«";
   if (text) text.textContent = recolhido ? "Expandir menu" : "Recolher menu";
+
   btn.title = recolhido ? "Expandir menu" : "Recolher menu";
 }
 
 function trocarPagina(page) {
   APP.page = page || "perfil";
-  document.querySelectorAll(".menu-item").forEach(btn => btn.classList.toggle("active", btn.getAttribute("data-page") === APP.page));
-  const t = APP.titles[APP.page] || APP.titles.perfil;
-  setText("tituloPagina", t[0]);
-  setText("subtituloPagina", t[1]);
+
+  document.querySelectorAll(".menu-item").forEach(function(btn) {
+    btn.classList.toggle(
+      "active",
+      btn.getAttribute("data-page") === APP.page
+    );
+  });
+
+  const titulo = APP.titles[APP.page] || APP.titles.perfil;
+
+  setText("tituloPagina", titulo[0]);
+  setText("subtituloPagina", titulo[1]);
+
   if (APP.viewCache[APP.page]) {
     setHtml("conteudo", APP.viewCache[APP.page]);
     esconderLoading();
     carregarDadosModulo(APP.page);
     return;
   }
-  mostrarLoading("Carregando " + t[0] + "...");
-  google.script.run.withSuccessHandler(html => {
-    APP.viewCache[APP.page] = html || "";
-    setHtml("conteudo", APP.viewCache[APP.page]);
-    esconderLoading();
-    carregarDadosModulo(APP.page);
-  }).withFailureHandler(erroPortal).carregarView(APP.page);
+
+  mostrarLoading("Carregando " + titulo[0] + "...");
+
+  google.script.run
+    .withSuccessHandler(function(html) {
+      APP.viewCache[APP.page] = html || "";
+      setHtml("conteudo", APP.viewCache[APP.page]);
+      esconderLoading();
+      carregarDadosModulo(APP.page);
+    })
+    .withFailureHandler(erroPortal)
+    .carregarView(APP.page);
 }
 
 function carregarDadosModulo(page, force) {
@@ -103,6 +138,7 @@ function carregarDadosModulo(page, force) {
     renderizarModuloSeguro(page);
     return;
   }
+
   const calls = {
     perfil: "carregarResumoPerfil",
     patologias: "carregarPatologias",
@@ -112,14 +148,21 @@ function carregarDadosModulo(page, force) {
     seguimento: "carregarTratativasAcidentes",
     acidentes: "carregarAcidentes"
   };
+
   const fn = calls[page];
+
   if (!fn) return;
+
   mostrarLoading("Carregando dados...");
-  const runner = google.script.run.withSuccessHandler(ret => {
-    APP.dataCache[page] = ret || {};
-    esconderLoading();
-    renderizarModuloSeguro(page);
-  }).withFailureHandler(erroPortal);
+
+  const runner = google.script.run
+    .withSuccessHandler(function(ret) {
+      APP.dataCache[page] = ret || {};
+      esconderLoading();
+      renderizarModuloSeguro(page);
+    })
+    .withFailureHandler(erroPortal);
+
   chamarBackendModulo(runner, fn);
 }
 
@@ -131,6 +174,7 @@ function chamarBackendModulo(runner, fn) {
   if (fn === "carregarExames") return runner.carregarExames();
   if (fn === "carregarTratativasAcidentes") return runner.carregarTratativasAcidentes();
   if (fn === "carregarAcidentes") return runner.carregarAcidentes();
+
   throw new Error("Função de backend não mapeada: " + fn);
 }
 
@@ -149,25 +193,36 @@ function renderizarModuloSeguro(page) {
 }
 
 function renderizarModulo(page) {
-  setText("atualizadoEm", "Atualizado em " + ((APP.dataCache[page] || {}).updatedAt || (APP.config || {}).updatedAt || "-"));
+  const dados = APP.dataCache[page] || {};
+  const atualizado = dados.updatedAt || (APP.config || {}).updatedAt || "-";
+
+  setText("atualizadoEm", "Atualizado em " + atualizado);
+
   if (page === "perfil") renderPerfilSaude();
-  if (page === "patologias") renderPatologias();
-  if (page === "afastamentos") renderAfastamentos();
-  if (page === "vacinas") renderVacinas();
-  if (page === "exames") renderExames();
-  if (page === "seguimento") renderSeguimento();
-  if (page === "acidentes") renderAcidentes();
+  else if (page === "patologias") renderPatologias();
+  else if (page === "afastamentos") renderAfastamentos();
+  else if (page === "vacinas") renderVacinas();
+  else if (page === "exames") renderExames();
+  else if (page === "seguimento") renderSeguimento();
+  else if (page === "acidentes") renderAcidentes();
 }
 
 function mostrarErroRenderizacao(page, erro, dados) {
   const msg = erro && erro.message ? erro.message : String(erro || "Erro desconhecido");
   const stack = erro && erro.stack ? erro.stack : "";
   const resumo = resumoDadosModulo(dados || {});
-  const html = '<div class="empty error-box"><b>Erro ao desenhar este módulo</b><br>' +
-    esc(msg) + (stack ? '<pre>' + esc(stack) + '</pre>' : '') +
-    '<small>' + esc(resumo) + '</small></div>';
+
+  const html =
+    '<div class="empty error-box">' +
+      "<b>Erro ao desenhar este módulo</b><br>" +
+      esc(msg) +
+      (stack ? "<pre>" + esc(stack) + "</pre>" : "") +
+      "<small>" + esc(resumo) + "</small>" +
+    "</div>";
+
   const alvoFiltros = document.getElementById(page + "Filtros");
   const alvoCards = document.getElementById(page + "Cards");
+
   if (alvoFiltros) alvoFiltros.innerHTML = html;
   if (alvoCards) alvoCards.innerHTML = "";
   if (!alvoFiltros) setHtml("conteudo", html);
@@ -175,64 +230,140 @@ function mostrarErroRenderizacao(page, erro, dados) {
 
 function resumoDadosModulo(dados) {
   const partes = [];
+
   if (dados.registros) partes.push("registros=" + dados.registros.length);
   if (dados.colaboradores) partes.push("colaboradores=" + dados.colaboradores.length);
-  if (dados.totalRegistros) partes.push("totalRegistros=" + dados.totalRegistros);
+  if (dados.totalRegistros !== undefined) partes.push("totalRegistros=" + dados.totalRegistros);
   if (dados.retornoLimitado) partes.push("retornoLimitado=true");
-  if (dados.origem && dados.origem.aba) partes.push("origem=" + dados.origem.aba + " linhas=" + (dados.origem.linhasLidas || 0));
+
+  if (dados.origem && dados.origem.aba) {
+    partes.push(
+      "origem=" + dados.origem.aba +
+      " linhas=" + (dados.origem.linhasLidas || 0)
+    );
+  }
+
   return partes.join(" | ") || "Sem resumo de dados recebido.";
 }
 
+/* =========================
+   FILTROS
+========================= */
+
 function renderFiltros(module, data, extras) {
   const op = data.opcoes || {};
-  const html = '<div class="filter-row">' +
-    filtroMulti(module, "setor", "Setor", op.setores || [], true) +
-    filtroMulti(module, "funcao", "Função", op.funcoes || [], true) +
-    filtroMultiStatus(module, op.status || ((APP.config || {}).statusOptions || [])) +
-    filtroMulti(module, "sexo", "Sexo", op.sexos || [], true) +
-    filtroSelect(module, "ano", "Ano", extras && extras.anos, "Todos") +
-    filtroSelect(module, "situacao", extras && extras.situacoes, "Todas") +
-    '<button class="btn-secondary" onclick="limparFiltros(\'' + module + '\')">Limpar filtros</button>' +
-    '<div class="filter-group"><label>Pesquisa</label><input class="filter-input" id="' + module + '_busca" placeholder="Nome ou matrícula" oninput="debouncedRender(\'' + module + '\')"></div>' +
-  '</div>';
+  const html =
+    '<div class="filter-row">' +
+      filtroMulti(module, "setor", "Setor", op.setores || [], true) +
+      filtroMulti(module, "funcao", "Função", op.funcoes || [], true) +
+      filtroMultiStatus(module, op.status || ((APP.config || {}).statusOptions || [])) +
+      filtroMulti(module, "sexo", "Sexo", op.sexos || [], true) +
+      filtroSelect(module, "ano", "Ano", extras && extras.anos, "Todos") +
+      filtroSelect(module, "situacao", "Situação", extras && extras.situacoes, "Todas") +
+      '<button class="btn-secondary" type="button" onclick="limparFiltros(\'' + module + '\')">Limpar filtros</button>' +
+      '<div class="filter-group">' +
+        "<label>Pesquisa</label>" +
+        '<input class="filter-input" id="' + module + '_busca" placeholder="Nome ou matrícula" oninput="debouncedRender(\'' + module + '\')">' +
+      "</div>" +
+    "</div>";
+
   setHtml(module + "Filtros", html);
-  ["setor", "funcao", "status", "sexo"].forEach(t => atualizarTextoMulti(module, t));
+
+  ["setor", "funcao", "status", "sexo"].forEach(function(tipo) {
+    atualizarTextoMulti(module, tipo);
+  });
 }
 
 function renderFiltrosPerfil(data) {
   const op = data.opcoes || {};
-  const html = '<div class="filter-row perfil-filter-row">' +
-    filtroMulti("perfil", "setor", "Setor", op.setores || [], true) +
-    filtroMulti("perfil", "funcao", "Função", op.funcoes || [], true) +
-    filtroMultiStatus("perfil", op.status || ((APP.config || {}).statusOptions || [])) +
-    filtroSelect("perfil", "ano", "Ano", data.anos || [], "Todos") +
-    '<button class="btn-secondary" onclick="limparFiltros(\'perfil\')">Limpar filtros</button>' +
-  '</div>';
+  const html =
+    '<div class="filter-row perfil-filter-row">' +
+      filtroMulti("perfil", "setor", "Setor", op.setores || [], true) +
+      filtroMulti("perfil", "funcao", "Função", op.funcoes || [], true) +
+      filtroMultiStatus("perfil", op.status || ((APP.config || {}).statusOptions || [])) +
+      filtroSelect("perfil", "ano", "Ano", data.anos || [], "Todos") +
+      '<button class="btn-secondary" type="button" onclick="limparFiltros(\'perfil\')">Limpar filtros</button>' +
+    "</div>";
+
   setHtml("perfilFiltros", html);
-  ["setor", "funcao", "status"].forEach(t => atualizarTextoMulti("perfil", t));
+
+  ["setor", "funcao", "status"].forEach(function(tipo) {
+    atualizarTextoMulti("perfil", tipo);
+  });
 }
 
 function filtroMulti(module, type, label, options, checked) {
-  options = listaOpcoes(options);
-  return '<div class="filter-group"><label>' + esc(label) + '</label><button type="button" class="multi-btn" id="' + module + '_' + type + '_btn" onclick="toggleMulti(\'' + module + '\',\'' + type + '\')"><span>Todos selecionados</span><b>▾</b></button><div class="multi-panel" id="' + module + '_' + type + '_panel">' +
-    '<input class="multi-search" placeholder="Pesquisar" oninput="filtrarMulti(\'' + module + '\',\'' + type + '\',this.value)"><div class="multi-actions"><button onclick="marcarMulti(\'' + module + '\',\'' + type + '\',true)" type="button">Todos</button><button onclick="marcarMulti(\'' + module + '\',\'' + type + '\',false)" type="button">Limpar</button></div>' +
-    (options || []).map(v => rowCheck(module, type, v, checked)).join("") + '</div></div>';
+  const lista = listaOpcoes(options);
+
+  return (
+    '<div class="filter-group">' +
+      "<label>" + esc(label) + "</label>" +
+      '<button type="button" class="multi-btn" id="' + module + "_" + type + '_btn" onclick="toggleMulti(\'' + module + "','" + type + '\')">' +
+        "<span>Todos selecionados</span><b>▾</b>" +
+      "</button>" +
+      '<div class="multi-panel" id="' + module + "_" + type + '_panel">' +
+        '<input class="multi-search" placeholder="Pesquisar" oninput="filtrarMulti(\'' + module + "','" + type + '\',this.value)">' +
+        '<div class="multi-actions">' +
+          '<button type="button" onclick="marcarMulti(\'' + module + "','" + type + '\',true)">Todos</button>' +
+          '<button type="button" onclick="marcarMulti(\'' + module + "','" + type + '\',false)">Limpar</button>' +
+        "</div>" +
+        lista.map(function(v) {
+          return rowCheck(module, type, v, checked);
+        }).join("") +
+      "</div>" +
+    "</div>"
+  );
 }
 
 function filtroMultiStatus(module, options) {
-  options = listaOpcoes(options);
-  return '<div class="filter-group"><label>Status do colaborador</label><button type="button" class="multi-btn" id="' + module + '_status_btn" onclick="toggleMulti(\'' + module + '\',\'status\')"><span>Status padrão</span><b>▾</b></button><div class="multi-panel" id="' + module + '_status_panel">' +
-    '<input class="multi-search" placeholder="Pesquisar status" oninput="filtrarMulti(\'' + module + '\',\'status\',this.value)"><div class="multi-actions"><button onclick="statusPadrao(\'' + module + '\')" type="button">Padrão</button><button onclick="marcarMulti(\'' + module + '\',\'status\',true)" type="button">Todos</button><button onclick="marcarMulti(\'' + module + '\',\'status\',false)" type="button">Limpar</button></div>' +
-    (options || []).map(o => rowCheck(module, "status", o.nome || o, !!o.selected)).join("") + '</div></div>';
+  const lista = listaOpcoes(options);
+
+  return (
+    '<div class="filter-group">' +
+      "<label>Status do colaborador</label>" +
+      '<button type="button" class="multi-btn" id="' + module + '_status_btn" onclick="toggleMulti(\'' + module + "','status')\">" +
+        "<span>Status padrão</span><b>▾</b>" +
+      "</button>" +
+      '<div class="multi-panel" id="' + module + '_status_panel">' +
+        '<input class="multi-search" placeholder="Pesquisar status" oninput="filtrarMulti(\'' + module + "','status',this.value)\">" +
+        '<div class="multi-actions">' +
+          '<button type="button" onclick="statusPadrao(\'' + module + "')\">Padrão</button>" +
+          '<button type="button" onclick="marcarMulti(\'' + module + "','status',true)\">Todos</button>" +
+          '<button type="button" onclick="marcarMulti(\'' + module + "','status',false)\">Limpar</button>" +
+        "</div>" +
+        lista.map(function(o) {
+          return rowCheck(module, "status", o.nome || o, !!o.selected);
+        }).join("") +
+      "</div>" +
+    "</div>"
+  );
 }
 
 function rowCheck(module, type, value, checked) {
-  return '<label class="check-row" data-text="' + escAttr(norm(value)) + '"><input type="checkbox" value="' + escAttr(value) + '"' + (checked ? " checked" : "") + ' onchange="aplicarFiltros(\'' + module + '\')"><span>' + esc(value) + '</span></label>';
+  return (
+    '<label class="check-row" data-text="' + escAttr(norm(value)) + '">' +
+      '<input type="checkbox" value="' + escAttr(value) + '"' +
+      (checked ? " checked" : "") +
+      ' onchange="aplicarFiltros(\'' + module + "')\">" +
+      "<span>" + esc(value) + "</span>" +
+    "</label>"
+  );
 }
 
 function filtroSelect(module, type, label, options, first) {
   const lista = listaOpcoes(options);
-  return '<div class="filter-group"><label>' + esc(label) + '</label><select class="filter-input" id="' + module + '_' + type + '" onchange="aplicarFiltros(\'' + module + '\')"><option value="">' + esc(first || "Todos") + '</option>' + lista.map(v => '<option value="' + escAttr(v) + '">' + esc(v) + '</option>').join("") + '</select></div>';
+
+  return (
+    '<div class="filter-group">' +
+      "<label>" + esc(label) + "</label>" +
+      '<select class="filter-input" id="' + module + "_" + type + '" onchange="aplicarFiltros(\'' + module + "')\">" +
+        '<option value="">' + esc(first || "Todos") + "</option>" +
+        lista.map(function(v) {
+          return '<option value="' + escAttr(v) + '">' + esc(v) + "</option>";
+        }).join("") +
+      "</select>" +
+    "</div>"
+  );
 }
 
 function listaOpcoes(options) {
@@ -243,187 +374,312 @@ function listaOpcoes(options) {
 }
 
 function toggleMulti(module, type) {
-  document.querySelectorAll(".multi-panel").forEach(p => {
-    if (p.id !== module + "_" + type + "_panel") p.classList.remove("open");
+  document.querySelectorAll(".multi-panel").forEach(function(panel) {
+    if (panel.id !== module + "_" + type + "_panel") {
+      panel.classList.remove("open");
+    }
   });
+
   const panel = document.getElementById(module + "_" + type + "_panel");
+
   if (panel) panel.classList.toggle("open");
 }
 
 function fecharFiltrosAoClicarFora(event) {
   const alvo = event && event.target;
+
   if (alvo && alvo.closest && alvo.closest(".filter-group")) return;
-  document.querySelectorAll(".multi-panel.open").forEach(p => p.classList.remove("open"));
+
+  document.querySelectorAll(".multi-panel.open").forEach(function(panel) {
+    panel.classList.remove("open");
+  });
 }
 
 function filtrarMulti(module, type, value) {
   const panel = document.getElementById(module + "_" + type + "_panel");
-  const q = norm(value);
+  const busca = norm(value);
+
   if (!panel) return;
-  panel.querySelectorAll(".check-row").forEach(row => row.style.display = !q || (row.getAttribute("data-text") || "").indexOf(q) !== -1 ? "flex" : "none");
+
+  panel.querySelectorAll(".check-row").forEach(function(row) {
+    const texto = row.getAttribute("data-text") || "";
+    row.style.display = !busca || texto.indexOf(busca) !== -1 ? "flex" : "none";
+  });
 }
 
 function marcarMulti(module, type, checked) {
   const panel = document.getElementById(module + "_" + type + "_panel");
+
   if (!panel) return;
-  panel.querySelectorAll("input[type='checkbox']").forEach(i => { if (i.closest(".check-row").style.display !== "none") i.checked = checked; });
+
+  panel.querySelectorAll("input[type='checkbox']").forEach(function(input) {
+    const linha = input.closest(".check-row");
+
+    if (!linha || linha.style.display !== "none") {
+      input.checked = checked;
+    }
+  });
+
   atualizarTextoMulti(module, type);
   aplicarFiltros(module);
 }
 
 function statusPadrao(module) {
-  const defaults = (((APP.dataCache[module] || {}).opcoes || {}).status || (APP.config || {}).statusOptions || []);
-  const selected = {};
-  defaults.forEach(o => { selected[o.nome || o] = !!o.selected; });
+  const defaults =
+    (((APP.dataCache[module] || {}).opcoes || {}).status) ||
+    (APP.config || {}).statusOptions ||
+    [];
+
+  const selecionadosPadrao = {};
+
+  defaults.forEach(function(item) {
+    selecionadosPadrao[item.nome || item] = !!item.selected;
+  });
+
   const panel = document.getElementById(module + "_status_panel");
+
   if (!panel) return;
-  panel.querySelectorAll("input[type='checkbox']").forEach(i => i.checked = selected[i.value] !== false);
+
+  panel.querySelectorAll("input[type='checkbox']").forEach(function(input) {
+    input.checked = selecionadosPadrao[input.value] === true;
+  });
+
   atualizarTextoMulti(module, "status");
-  aplicarFiltros(module);
 }
 
 function selecionados(module, type) {
   const panel = document.getElementById(module + "_" + type + "_panel");
+
   if (!panel) return [];
-  return Array.from(panel.querySelectorAll("input[type='checkbox']:checked")).map(i => i.value);
+
+  return Array.from(
+    panel.querySelectorAll("input[type='checkbox']:checked")
+  ).map(function(input) {
+    return input.value;
+  });
 }
 
 function atualizarTextoMulti(module, type) {
   const btn = document.querySelector("#" + module + "_" + type + "_btn span");
   const panel = document.getElementById(module + "_" + type + "_panel");
+
   if (!btn || !panel) return;
-  const all = Array.from(panel.querySelectorAll("input[type='checkbox']"));
-  const sel = all.filter(i => i.checked);
+
+  const todos = Array.from(panel.querySelectorAll("input[type='checkbox']"));
+  const sel = todos.filter(function(input) {
+    return input.checked;
+  });
+
   if (!sel.length) btn.textContent = "Nenhum selecionado";
-  else if (sel.length === all.length) btn.textContent = "Todos selecionados";
+  else if (sel.length === todos.length) btn.textContent = "Todos selecionados";
   else if (sel.length === 1) btn.textContent = sel[0].value;
   else btn.textContent = sel.length + " selecionados";
 }
 
 function limparFiltros(module) {
-  ["setor", "funcao", "sexo"].forEach(t => marcarMultiSemRender(module, t, true));
+  ["setor", "funcao", "sexo"].forEach(function(tipo) {
+    marcarMultiSemRender(module, tipo, true);
+  });
+
   statusPadrao(module);
-  ["ano", "situacao"].forEach(t => { const el = document.getElementById(module + "_" + t); if (el) el.value = ""; });
+
+  ["ano", "situacao"].forEach(function(tipo) {
+    const el = document.getElementById(module + "_" + tipo);
+    if (el) el.value = "";
+  });
+
   const busca = document.getElementById(module + "_busca");
+
   if (busca) busca.value = "";
+
   aplicarFiltros(module);
 }
 
 function marcarMultiSemRender(module, type, checked) {
   const panel = document.getElementById(module + "_" + type + "_panel");
+
   if (!panel) return;
-  panel.querySelectorAll("input[type='checkbox']").forEach(i => i.checked = checked);
+
+  panel.querySelectorAll("input[type='checkbox']").forEach(function(input) {
+    input.checked = checked;
+  });
+
   atualizarTextoMulti(module, type);
 }
 
 let debounceTimer = null;
+
 function debouncedRender(module) {
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => aplicarFiltros(module), 220);
+
+  debounceTimer = setTimeout(function() {
+    aplicarFiltros(module);
+  }, 220);
 }
 
 function aplicarFiltros(module) {
-  ["setor", "funcao", "status", "sexo"].forEach(t => atualizarTextoMulti(module, t));
+  ["setor", "funcao", "status", "sexo"].forEach(function(tipo) {
+    atualizarTextoMulti(module, tipo);
+  });
+
   APP.pageIndex[module] = 0;
   renderizarModulo(module);
 }
 
 function filtroComum(module, rows) {
-  const set = selecionados(module, "setor");
-  const fun = selecionados(module, "funcao");
-  const sta = selecionados(module, "status");
-  const sex = selecionados(module, "sexo");
+  const setores = selecionados(module, "setor");
+  const funcoes = selecionados(module, "funcao");
+  const status = selecionados(module, "status");
+  const sexos = selecionados(module, "sexo");
   const ano = getValue(module + "_ano");
-  const sit = getValue(module + "_situacao");
+  const situacao = getValue(module + "_situacao");
   const busca = norm(getValue(module + "_busca"));
-  return (rows || []).filter(r => {
-    if (set.length && set.indexOf(r.setor) === -1) return false;
-    if (fun.length && fun.indexOf(r.funcao) === -1) return false;
-    if (sta.length && sta.indexOf(r.status) === -1) return false;
-    if (sex.length && sex.indexOf(r.sexo) === -1) return false;
+
+  return (rows || []).filter(function(r) {
+    if (setores.length && setores.indexOf(r.setor) === -1) return false;
+    if (funcoes.length && funcoes.indexOf(r.funcao) === -1) return false;
+    if (status.length && status.indexOf(r.status) === -1) return false;
+    if (sexos.length && sexos.indexOf(r.sexo) === -1) return false;
     if (ano && String(r.ano || "") !== String(ano)) return false;
-    if (sit && norm(r.situacaoVacinal || r.statusEtapa || "") !== norm(sit)) return false;
-    if (busca && (norm(r.nome).indexOf(busca) === -1 && norm(r.mat).indexOf(busca) === -1)) return false;
+
+    if (
+      situacao &&
+      norm(r.situacaoVacinal || r.statusEtapa || r.status || "") !== norm(situacao)
+    ) {
+      return false;
+    }
+
+    if (
+      busca &&
+      norm(r.nome).indexOf(busca) === -1 &&
+      norm(r.mat).indexOf(busca) === -1
+    ) {
+      return false;
+    }
+
     return true;
   });
 }
 
+/* =========================
+   PERFIL
+========================= */
+
 function renderPerfilSaude() {
   const data = APP.dataCache.perfil || {};
+
   if (!document.getElementById("perfilFiltros")) return;
-  if (!document.getElementById("perfil_setor_btn")) renderFiltrosPerfil(data);
+
+  if (!document.getElementById("perfil_setor_btn")) {
+    renderFiltrosPerfil(data);
+  }
 
   const rows = filtroPerfilColaboradores(data.colaboradores || []);
-  const rowsDemografia = filtroPerfilColaboradores(data.colaboradores || [], true);
   const ano = getValue("perfil_ano");
-  const rowsTotal = rowsDemografia.filter(r => !statusForaTotalPerfil(r.status));
-  const rowsAtivos = rowsDemografia.filter(r => statusAtivoPerfil(r.status));
-  const homens = rowsTotal.filter(r => r.sexo === "Masculino");
-  const homensAtivos = rowsAtivos.filter(r => r.sexo === "Masculino");
-  const mulheres = rowsTotal.filter(r => r.sexo === "Feminino");
-  const mulheresAtivas = rowsAtivos.filter(r => r.sexo === "Feminino");
-  const withPat = rows.filter(r => (r.cids || []).length).length;
-  const totalCids = sum(rows, r => (r.cids || []).length);
-  const eventosAfast = ((data.eventos || {}).afastamentos || []).filter(e => !ano || String(e.ano || "") === String(ano));
-  const pendVac = rows.filter(r => (r.vacPendencias || []).length);
+
+  const rowsAtivos = rows.filter(function(r) {
+    return statusAtivoPerfil(r.status);
+  });
+
+  const homens = rows.filter(function(r) {
+    return r.sexo === "Masculino";
+  });
+
+  const mulheres = rows.filter(function(r) {
+    return r.sexo === "Feminino";
+  });
+
+  const withPat = rows.filter(function(r) {
+    return (r.cids || []).length > 0;
+  }).length;
+
+  const totalCids = sum(rows, function(r) {
+    return (r.cids || []).length;
+  });
+
+  const eventosAfast = ((data.eventos || {}).afastamentos || []).filter(function(e) {
+    return !ano || String(e.ano || "") === String(ano);
+  });
+
   const topCid = grupoCids(rows, "cids")[0];
 
   setHtml("perfilCards", [
-    kpi("PS", "Colaboradores total", rowsTotal.length, "Total considerado"),
-    kpi("AT", "Colaboradores ativos", rowsAtivos.length, "Ativo, reabilitado, gestante e licenca maternidade"),
-    kpi("M", "Homens", homensAtivos.length, "Total: " + homens.length),
-    kpi("F", "Mulheres", mulheresAtivas.length, "Total: " + mulheres.length)
+    kpi("PS", "Colaboradores no filtro", rows.length, "Conforme filtros selecionados"),
+    kpi("AT", "Colaboradores ativos", rowsAtivos.length, "Subconjunto do filtro atual"),
+    kpi("M", "Homens", homens.length, pct(homens.length, rows.length) + " do filtro"),
+    kpi("F", "Mulheres", mulheres.length, pct(mulheres.length, rows.length) + " do filtro")
   ].join(""));
 
   renderHabitBars("perfilAtividade", grupoHabitoPerfil(rows, "atividadeFisica"));
   renderHabitBars("perfilTabagismo", grupoHabitoPerfil(rows, "tabagismo"));
   renderHabitBars("perfilEtilismo", grupoHabitoPerfil(rows, "etilismo"));
 
+  const vacCompletas = rows.filter(function(r) {
+    return r.vacCompleta;
+  }).length;
+
+  const vacPendentes = rows.filter(function(r) {
+    return !r.vacCompleta;
+  }).length;
+
   setHtml("perfilVacinasCards", [
-    kpi("VC", "Cobertura geral", pct(rows.filter(r => r.vacCompleta).length, rows.length), rows.filter(r => r.vacCompleta).length + " de " + rows.length),
-    kpi("OK", "Completos", rows.filter(r => r.vacCompleta).length, "Colaboradores"),
-    kpi("!", "Pendentes", pendVac.length, "Com ao menos uma pendencia"),
-    kpi("dT", "dT atualizada", pct(rows.filter(r => vacinaAtualizadaPerfil(r, "dt")).length, rows.length), "Por esquema dT"),
-    kpi("HB", "Hepatite B atualizada", pct(rows.filter(r => vacinaAtualizadaPerfil(r, "hepB")).length, rows.length), "Por situacao Hep B"),
-    kpi("CV", "Covid", pct(rows.filter(r => vacinaAtualizadaPerfil(r, "covid")).length, rows.length), "Por situacao COVID")
+    kpi("VC", "Vacinas atualizadas", pct(vacCompletas, rows.length), vacCompletas + " de " + rows.length),
+    kpi("OK", "Atualizadas", vacCompletas, "Conforme coluna D"),
+    kpi("!", "Pendência vacinal", vacPendentes, "Conforme coluna D"),
+    kpi("dT", "dT completa", pct(rows.filter(function(r) { return vacinaAtualizadaPerfil(r, "dt"); }).length, rows.length), "Coluna K"),
+    kpi("HB", "Hepatite B completa", pct(rows.filter(function(r) { return vacinaAtualizadaPerfil(r, "hepB"); }).length, rows.length), "Coluna R"),
+    kpi("CV", "COVID vacinado(a)", pct(rows.filter(function(r) { return vacinaAtualizadaPerfil(r, "covid"); }).length, rows.length), "Coluna AA")
   ].join(""));
-  renderBars("perfilVacinasAno", vacinasAplicadasPorAno(rows, ano), 2);
-  renderBars("perfilVacinasPendencias", grupoPendenciasVacPerfil(rows), 8);
+
+  renderBars("perfilVacinasAno", vacinasAplicadasPorAno(rows, ano), 3);
+  renderBars("perfilVacinasPendencias", grupoPendenciasVacPerfil(rows), 3);
   renderBars("perfilVacinasSetor", grupoPendenciasVacSetorTipo(rows), 15);
 
   setHtml("perfilPatologiasCards", [
-    kpi("CID", "Com patologia", withPat, rows.length - withPat + " sem patologia"),
-    kpi("S", "Total de CIDs", totalCids, "Ocorrencias registradas"),
+    kpi("CID", "Com patologia", withPat, (rows.length - withPat) + " sem patologia"),
+    kpi("S", "Total de CIDs", totalCids, "Ocorrências registradas"),
     kpi("TOP", "CID mais prevalente", topCid ? topCid.nome : "-", topCid ? topCid.quantidade + " registros" : "Sem CID")
   ].join(""));
+
   renderBars("perfilFamilias", grupoCids(rows, "familiasCid"), 12);
   renderBars("perfilTopCids", grupoCids(rows, "cids"), 10);
-  renderBars("perfilPatologiasSetor", group(rows.filter(r => (r.cids || []).length), "setor"), 15);
-  renderComboChart("perfilPatAfFamilia", cruzarPatologiasAfastamentosFamilia(rows, eventosAfast), 12);
-  renderComboChart("perfilPatAfCids", cruzarPatologiasAfastamentosCid(rows, eventosAfast), 10);
+  renderBars("perfilPatologiasSetor", group(rows.filter(function(r) { return (r.cids || []).length; }), "setor"), 15);
+
+  renderComboChart(
+    "perfilPatAfFamilia",
+    cruzarPatologiasAfastamentosFamilia(rows, eventosAfast),
+    12
+  );
+
+  renderComboChart(
+    "perfilPatAfCids",
+    cruzarPatologiasAfastamentosCid(rows, eventosAfast),
+    10
+  );
 }
 
-function filtroPerfilColaboradores(rows, ignorarStatus) {
-  const set = selecionados("perfil", "setor");
-  const fun = selecionados("perfil", "funcao");
-  const sta = selecionados("perfil", "status");
-  return (rows || []).filter(r => {
-    if (set.length && set.indexOf(r.setor) === -1) return false;
-    if (fun.length && fun.indexOf(r.funcao) === -1) return false;
-    if (!ignorarStatus && sta.length && sta.indexOf(r.status) === -1) return false;
+function filtroPerfilColaboradores(rows) {
+  const setores = selecionados("perfil", "setor");
+  const funcoes = selecionados("perfil", "funcao");
+  const status = selecionados("perfil", "status");
+
+  return (rows || []).filter(function(r) {
+    if (setores.length && setores.indexOf(r.setor) === -1) return false;
+    if (funcoes.length && funcoes.indexOf(r.funcao) === -1) return false;
+    if (status.length && status.indexOf(r.status) === -1) return false;
     return true;
   });
 }
 
-function statusForaTotalPerfil(status) {
-  const s = norm(status);
-  return s.indexOf("DESLIG") !== -1 || s.indexOf("OBITO") !== -1 || s.indexOf("TRANSFER") !== -1;
-}
-
 function statusAtivoPerfil(status) {
-  const s = norm(status);
-  const semHifen = s.replace(/[-–—]/g, " ");
-  return s === "ATIVO" || semHifen.indexOf("REABILITADO") !== -1 || semHifen.indexOf("GESTANTE") !== -1 || semHifen.indexOf("LICENCA MATERNIDADE") !== -1;
+  const s = norm(status).replace(/[-–—]/g, " ");
+
+  return (
+    s === "ATIVO" ||
+    s.indexOf("REABILITADO") !== -1 ||
+    s.indexOf("GESTANTE") !== -1 ||
+    s.indexOf("LICENCA MATERNIDADE") !== -1
+  );
 }
 
 function vacinaAtualizadaPerfil(row, id) {
@@ -433,291 +689,538 @@ function vacinaAtualizadaPerfil(row, id) {
 
 function vacinasAplicadasPorAno(rows, anoFiltro) {
   const ano = String(anoFiltro || new Date().getFullYear());
-  const ordem = ["dT", "Hepatite B"];
-  const o = { "dT": 0, "Hepatite B": 0 };
-  (rows || []).forEach(r => (r.vacinaEventos || []).forEach(e => {
-    if (String(e.ano || "") !== ano) return;
-    if (ordem.indexOf(e.tipo) === -1) return;
-    if (o[e.tipo] === undefined) o[e.tipo] = 0;
-    o[e.tipo] += 1;
-  }));
-  return ordem.map(k => ({ nome: k + " - " + ano, quantidade: o[k] || 0 }));
+  const ordem = ["dT", "Hepatite B", "COVID"];
+  const contagem = { "dT": 0, "Hepatite B": 0, "COVID": 0 };
+
+  (rows || []).forEach(function(r) {
+    (r.vacinaEventos || []).forEach(function(e) {
+      if (String(e.ano || "") !== ano) return;
+      if (ordem.indexOf(e.tipo) === -1) return;
+      contagem[e.tipo] = (contagem[e.tipo] || 0) + 1;
+    });
+  });
+
+  return ordem.map(function(tipo) {
+    return {
+      nome: tipo + " - " + ano,
+      quantidade: contagem[tipo] || 0
+    };
+  });
 }
 
 function grupoPendenciasVacPerfil(rows) {
-  const o = {};
-  (rows || []).forEach(r => (r.vacPendencias || []).forEach(p => { o[p] = (o[p] || 0) + 1; }));
-  return Object.keys(o).map(k => ({ nome: k, quantidade: o[k] })).sort((a, b) => b.quantidade - a.quantidade);
+  const contagem = { "dT": 0, "Hepatite B": 0, "COVID": 0 };
+
+  (rows || []).forEach(function(r) {
+    (r.vacPendencias || r.pendencias || []).forEach(function(p) {
+      if (contagem[p] !== undefined) {
+        contagem[p]++;
+      }
+    });
+  });
+
+  return ["dT", "Hepatite B", "COVID"].map(function(nome) {
+    return { nome: nome, quantidade: contagem[nome] || 0 };
+  });
 }
 
 function grupoPendenciasVacSetorTipo(rows) {
   const setores = {};
-  (rows || []).forEach(r => {
-    (r.vacPendencias || []).forEach(p => {
-      const setor = r.setor || "Nao informado";
-      if (!setores[setor]) setores[setor] = { total: 0, tipos: {} };
-      setores[setor].total += 1;
+
+  (rows || []).forEach(function(r) {
+    (r.vacPendencias || r.pendencias || []).forEach(function(p) {
+      const setor = r.setor || "Não informado";
+
+      if (!setores[setor]) {
+        setores[setor] = { total: 0, tipos: {} };
+      }
+
+      setores[setor].total++;
       setores[setor].tipos[p] = (setores[setor].tipos[p] || 0) + 1;
     });
   });
-  return Object.keys(setores).map(setor => {
+
+  return Object.keys(setores).map(function(setor) {
     const tipos = setores[setor].tipos;
-    const detalhe = Object.keys(tipos).sort().map(k => k + ": " + tipos[k]).join(" | ");
-    return { nome: setor, quantidade: setores[setor].total, detalhe };
-  }).sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome));
+    const detalhe = Object.keys(tipos).sort().map(function(tipo) {
+      return tipo + ": " + tipos[tipo];
+    }).join(" | ");
+
+    return {
+      nome: setor,
+      quantidade: setores[setor].total,
+      detalhe: detalhe
+    };
+  }).sort(function(a, b) {
+    return b.quantidade - a.quantidade || a.nome.localeCompare(b.nome);
+  });
 }
 
 function cruzarPatologiasAfastamentosFamilia(rows, eventos) {
-  const familiasPat = grupoCids(rows, "familiasCid").map(r => ({
-    familia: r.nome.split(" - ")[0],
-    patologias: r.quantidade
-  }));
-  const afastPorFamilia = countBy(eventos.filter(e => e.familiaCid), "familiaCid");
-  return familiasPat.map(item => ({
-    nome: item.familia + " - " + descricaoCidPerfil(item.familia),
-    patologias: item.patologias,
-    afastamentos: afastPorFamilia[item.familia] || 0,
-    detalhe: "Patologias: " + item.patologias + " | Afastamentos: " + (afastPorFamilia[item.familia] || 0)
-  }));
+  const familiasPat = grupoCids(rows, "familiasCid").map(function(item) {
+    return {
+      familia: item.nome.split(" - ")[0],
+      patologias: item.quantidade
+    };
+  });
+
+  const afastPorFamilia = countBy(
+    (eventos || []).filter(function(e) {
+      return e.familiaCid;
+    }),
+    "familiaCid"
+  );
+
+  return familiasPat.map(function(item) {
+    return {
+      nome: item.familia + " - " + descricaoCidPerfil(item.familia),
+      patologias: item.patologias,
+      afastamentos: afastPorFamilia[item.familia] || 0,
+      detalhe:
+        "Patologias: " + item.patologias +
+        " | Afastamentos: " + (afastPorFamilia[item.familia] || 0)
+    };
+  });
 }
 
 function cruzarPatologiasAfastamentosCid(rows, eventos) {
   const top = grupoCids(rows, "cids").slice(0, 10);
   const afastPorCid = {};
-  (eventos || []).forEach(e => {
+
+  (eventos || []).forEach(function(e) {
     const cid = cidComparavel(e.cid);
     if (cid) afastPorCid[cid] = (afastPorCid[cid] || 0) + 1;
   });
-  return top.map(item => ({
-    nome: item.nome,
-    patologias: item.quantidade,
-    afastamentos: afastPorCid[cidComparavel(item.nome)] || 0,
-    detalhe: "Patologias: " + item.quantidade + " | Afastamentos: " + (afastPorCid[cidComparavel(item.nome)] || 0)
-  }));
+
+  return top.map(function(item) {
+    return {
+      nome: item.nome,
+      patologias: item.quantidade,
+      afastamentos: afastPorCid[cidComparavel(item.nome)] || 0,
+      detalhe:
+        "Patologias: " + item.quantidade +
+        " | Afastamentos: " + (afastPorCid[cidComparavel(item.nome)] || 0)
+    };
+  });
 }
 
 function cidComparavel(cid) {
-  const m = norm(cid).replace(/[^A-Z0-9]/g, "").match(/[A-Z][0-9]{2}/);
-  return m ? m[0] : "";
+  const match = norm(cid).replace(/[^A-Z0-9]/g, "").match(/[A-Z][0-9]{2}/);
+  return match ? match[0] : "";
 }
 
 function grupoHabitoPerfil(rows, key) {
-  const nao = "N\u00c3O";
-  const naoInformado = "N\u00c3O INFORMADO";
-  const contagem = { "SIM": 0 };
-  contagem[nao] = 0;
-  contagem[naoInformado] = 0;
-  (rows || []).forEach(r => {
-    const v = norm(r[key]);
-    let label = naoInformado;
-    if (!v || v.indexOf("INFORMADO") !== -1 || v.indexOf("REGISTRO") !== -1) label = naoInformado;
-    else if (v === "SIM" || v.indexOf("SIM") === 0) label = "SIM";
-    else if (v === "NAO" || v === nao || v.indexOf("NAO") === 0 || v.indexOf(nao) === 0) label = nao;
-    contagem[label] += 1;
-  });
-  return ["SIM", nao, naoInformado].map(nome => ({ nome, quantidade: contagem[nome] || 0 }));
-}
-
-function descricaoCidPerfil(f) {
-  const map = {
-    A:"Infecciosas", B:"Infecciosas", C:"Neoplasias", D:"Sangue/imunidade",
-    E:"End\u00f3crinas", F:"Mentais", G:"Sistema nervoso", H:"Olhos/ouvidos",
-    I:"Circulat\u00f3rio", J:"Respirat\u00f3rio", K:"Digestivo", L:"Pele",
-    M:"Osteomuscular", N:"Geniturin\u00e1rio", O:"Gesta\u00e7\u00e3o", P:"Perinatal",
-    Q:"Cong\u00eanitas", R:"Sintomas", S:"Les\u00f5es", T:"Les\u00f5es",
-    U:"Especiais", V:"Externas", W:"Externas", X:"Externas", Y:"Externas",
-    Z:"Fatores de sa\u00fade"
+  const contagem = {
+    "SIM": 0,
+    "NÃO": 0,
+    "NÃO INFORMADO": 0
   };
-  return map[f] || "N\u00e3o informado";
+
+  (rows || []).forEach(function(r) {
+    const valor = norm(r[key]);
+    let label = "NÃO INFORMADO";
+
+    if (!valor || valor.indexOf("INFORMADO") !== -1 || valor.indexOf("REGISTRO") !== -1) {
+      label = "NÃO INFORMADO";
+    } else if (valor.indexOf("SIM") === 0) {
+      label = "SIM";
+    } else if (valor.indexOf("NAO") === 0) {
+      label = "NÃO";
+    }
+
+    contagem[label]++;
+  });
+
+  return ["SIM", "NÃO", "NÃO INFORMADO"].map(function(nome) {
+    return { nome: nome, quantidade: contagem[nome] || 0 };
+  });
 }
 
-function grupoHabito(rows, key) {
-  const contagem = { "SIM": 0, "NÃO": 0, "NÃO INFORMADO": 0 };
-  (rows || []).forEach(r => {
-    const v = norm(r[key]);
-    let label = "NÃO INFORMADO";
-    if (!v || v.indexOf("INFORMADO") !== -1 || v.indexOf("REGISTRO") !== -1) label = "NÃO INFORMADO";
-    else if (v === "SIM" || v.indexOf("SIM") === 0) label = "SIM";
-    else if (v === "NAO" || v === "NÃO" || v.indexOf("NAO") === 0 || v.indexOf("NÃO") === 0) label = "NÃO";
-    contagem[label] += 1;
-  });
-  return ["SIM", "NÃO", "NÃO INFORMADO"].map(nome => ({ nome, quantidade: contagem[nome] || 0 }));
-}
+/* =========================
+   MÓDULOS
+========================= */
 
 function renderPatologias() {
   const data = APP.dataCache.patologias || {};
+
   if (!document.getElementById("patologiasFiltros")) return;
-  if (!document.getElementById("patologias_setor_btn")) renderFiltros("patologias", data, {});
+
+  if (!document.getElementById("patologias_setor_btn")) {
+    renderFiltros("patologias", data, {});
+  }
+
   const rows = filtroComum("patologias", data.registros || []);
-  const withPat = rows.filter(r => (r.cids || []).length).length;
+  const withPat = rows.filter(function(r) {
+    return (r.cids || []).length;
+  }).length;
+
   setHtml("patologiasCards", [
     kpi("👥", "Colaboradores", rows.length, "Filtro atual"),
-    kpi("CID", "Com patologias", withPat, rows.length - withPat + " sem patologias"),
-    kpi("Σ", "Total de CIDs", sum(rows, r => (r.cids || []).length), "Registros CID"),
+    kpi("CID", "Com patologias", withPat, (rows.length - withPat) + " sem patologias"),
+    kpi("Σ", "Total de CIDs", sum(rows, function(r) { return (r.cids || []).length; }), "Registros CID"),
     kpi("⚕", "Famílias CID", grupoCids(rows, "familiasCid").length, "Famílias distintas")
   ].join(""));
+
   renderBars("patologiasFamilias", grupoCids(rows, "familiasCid"), 12);
   renderBars("patologiasTopCids", grupoCids(rows, "cids"), 10);
-  renderBars("patologiasSetor", group(rows.filter(r => r.cids.length), "setor"), 12);
-  renderBars("patologiasFuncao", group(rows.filter(r => r.cids.length), "funcao"), 12);
+  renderBars("patologiasSetor", group(rows.filter(function(r) { return (r.cids || []).length; }), "setor"), 12);
+  renderBars("patologiasFuncao", group(rows.filter(function(r) { return (r.cids || []).length; }), "funcao"), 12);
+
   renderTable("patologiasTabela", "patologias", rows, [
-    ["mat", "Matrícula"], ["nome", "Nome"], ["status", "Status"], ["sexo", "Sexo"], ["idade", "Idade"], ["setor", "Setor"], ["funcao", "Função"], ["cids", "CIDs"]
+    ["mat", "Matrícula"],
+    ["nome", "Nome"],
+    ["status", "Status"],
+    ["sexo", "Sexo"],
+    ["idade", "Idade"],
+    ["setor", "Setor"],
+    ["funcao", "Função"],
+    ["cids", "CIDs"]
   ]);
 }
 
 function renderAfastamentos() {
   const data = APP.dataCache.afastamentos || {};
+
   if (!document.getElementById("afastamentosFiltros")) return;
-  if (!document.getElementById("afastamentos_setor_btn")) renderFiltros("afastamentos", data, { anos: data.anos || [] });
+
+  if (!document.getElementById("afastamentos_setor_btn")) {
+    renderFiltros("afastamentos", data, { anos: data.anos || [] });
+  }
+
   const rows = filtroComum("afastamentos", data.registros || []);
   const keys = distinct(rows, "key");
-  const comCid = rows.filter(r => r.cid).length;
-  const fam = group(rows.filter(r => r.familiaCid), "familiaCid");
+  const comCid = rows.filter(function(r) { return r.cid; }).length;
+  const fam = group(rows.filter(function(r) { return r.familiaCid; }), "familiaCid");
+
+  const rowsComDias = rows.filter(function(r) {
+    return r.diasInformados !== false;
+  });
+
+  const totalDias = sum(rowsComDias, function(r) {
+    return r.dias;
+  });
+
+  const diasNaoInformados = rows.filter(function(r) {
+    return r.diasInformados === false;
+  }).length;
+
   setHtml("afastamentosCards", [
     kpi("▣", "Total de afastamentos", rows.length, "Eventos filtrados"),
     kpi("👥", "Colaboradores afastados", keys.length, "Distintos"),
-    kpi("▦", "Dias perdidos", sum(rows, r => r.dias), "Soma de QTD"),
-    kpi("Ø", "Média de dias", media(sum(rows, r => r.dias), rows.length), "Por afastamento"),
+    kpi("▦", "Dias perdidos", totalDias, diasNaoInformados ? diasNaoInformados + " sem QTD" : "Soma da coluna QTD"),
+    kpi("Ø", "Média de dias", media(totalDias, rowsComDias.length), "Somente com QTD"),
     kpi("CID", "Com CID", comCid, (rows.length - comCid) + " sem CID"),
-    kpi("F", "CID F", rows.filter(r => r.familiaCid === "F").length, "Mentais/comportamentais"),
-    kpi("M", "CID M", rows.filter(r => r.familiaCid === "M").length, "Osteomusculares"),
+    kpi("F", "CID F", rows.filter(function(r) { return r.familiaCid === "F"; }).length, "Mentais/comportamentais"),
+    kpi("M", "CID M", rows.filter(function(r) { return r.familiaCid === "M"; }).length, "Osteomusculares"),
     kpi("★", "Maior família CID", fam[0] ? fam[0].nome : "-", fam[0] ? fam[0].quantidade + " eventos" : "-")
   ].join(""));
+
   renderBars("afastamentosMes", meses(rows), 12);
-  renderBars("afastamentosFamilias", fam.map(f => ({ nome: f.nome + " - " + descricaoCid(f.nome), quantidade: f.quantidade })), 12);
+  renderBars("afastamentosFamilias", fam.map(function(f) {
+    return {
+      nome: f.nome + " - " + descricaoCid(f.nome),
+      quantidade: f.quantidade
+    };
+  }), 12);
   renderBars("afastamentosSetor", group(rows, "setor"), 12);
-  renderBars("afastamentosTopCids", group(rows.filter(r => r.cid), "cid"), 10);
+  renderBars("afastamentosTopCids", group(rows.filter(function(r) { return r.cid; }), "cid"), 10);
 }
 
 function renderVacinas() {
   const data = APP.dataCache.vacinas || {};
+
   if (!document.getElementById("vacinasFiltros")) return;
-  const situacoes = Array.from(new Set((data.registros || []).map(r => r.situacaoVacinal).filter(Boolean))).sort();
-  if (!document.getElementById("vacinas_setor_btn")) renderFiltros("vacinas", data, { situacoes });
+
+  const situacoes = ["Completo", "Pendente", "Não informado"];
+
+  if (!document.getElementById("vacinas_setor_btn")) {
+    renderFiltros("vacinas", data, { situacoes: situacoes });
+  }
+
   const rows = filtroComum("vacinas", data.registros || []);
-  const pend = rows.filter(r => (r.pendencias || []).length);
+
+  const completos = rows.filter(function(r) {
+    return r.situacaoVacinal === "Completo";
+  });
+
+  const pendentes = rows.filter(function(r) {
+    return r.situacaoVacinal === "Pendente";
+  });
+
+  const naoInformados = rows.filter(function(r) {
+    return r.situacaoVacinal === "Não informado";
+  });
+
   setHtml("vacinasCards", [
-    kpi("VC", "Cobertura geral", pct(rows.filter(r => r.completoGeral).length, rows.length), rows.filter(r => r.completoGeral).length + " de " + rows.length),
-    kpi("OK", "Completos", rows.filter(r => r.completoGeral).length, "Colaboradores"),
-    kpi("!", "Pendentes", pend.length, "Com ao menos uma pendÃªncia"),
-    kpi("dT", "dT atualizada", pct(rows.filter(r => r.vacinas.dt && r.vacinas.dt.completa).length, rows.length), "Por esquema dT"),
-    kpi("HB", "Hepatite B", pct(rows.filter(r => r.vacinas.hepB && r.vacinas.hepB.completa).length, rows.length), "Por situaÃ§Ã£o Hep B"),
-    kpi("CV", "COVID", pct(rows.filter(r => r.vacinas.covid && r.vacinas.covid.completa).length, rows.length), "Por situaÃ§Ã£o COVID")
+    kpi("VC", "Total de colaboradores", rows.length, "Filtro atual"),
+    kpi("OK", "Vacinas atualizadas", completos.length, "Coluna D"),
+    kpi("!", "Pendência vacinal", pendentes.length, "Coluna D"),
+    kpi("?", "Situação não informada", naoInformados.length, "Coluna D"),
+    kpi("dT", "dT incompleta", rows.filter(function(r) { return r.dtSituacao === "Pendente"; }).length, "Coluna K"),
+    kpi("HB", "Hepatite B incompleta", rows.filter(function(r) { return r.hepBSituacao === "Pendente"; }).length, "Coluna R"),
+    kpi("CV", "COVID não vacinado(a)", rows.filter(function(r) { return r.covidSituacao === "Pendente"; }).length, "Coluna AA")
   ].join(""));
-  renderBars("vacinasPendencias", grupoPendenciasVac(rows), 10);
-  renderBars("vacinasSetor", group(pend, "setor"), 12);
-  renderBars("vacinasFuncao", group(pend, "funcao"), 12);
-  renderBars("vacinasSexo", group(rows.filter(r => r.completoGeral), "sexo"), 8);
-  renderTable("vacinasTabela", "vacinas", pend, [
-    ["mat", "Matrícula"], ["nome", "Nome"], ["status", "Status"], ["setor", "Setor"], ["funcao", "Função"], ["sexo", "Sexo"], ["pendencias", "Pendências"], ["situacaoVacinal", "Situação geral"]
+
+  renderBars("vacinasPendencias", [
+    { nome: "dT", quantidade: rows.filter(function(r) { return r.dtSituacao === "Pendente"; }).length },
+    { nome: "Hepatite B", quantidade: rows.filter(function(r) { return r.hepBSituacao === "Pendente"; }).length },
+    { nome: "COVID", quantidade: rows.filter(function(r) { return r.covidSituacao === "Pendente"; }).length }
+  ], 3);
+
+  renderBars("vacinasSetor", group(pendentes, "setor"), 12);
+  renderBars("vacinasFuncao", group(pendentes, "funcao"), 12);
+  renderBars("vacinasSexo", group(completos, "sexo"), 8);
+
+  renderTable("vacinasTabela", "vacinas", pendentes, [
+    ["mat", "Matrícula"],
+    ["nome", "Nome"],
+    ["status", "Status"],
+    ["setor", "Setor"],
+    ["funcao", "Função"],
+    ["sexo", "Sexo"],
+    ["dtSituacao", "dT"],
+    ["hepBSituacao", "Hepatite B"],
+    ["covidSituacao", "COVID"],
+    ["situacaoVacinal", "Situação geral"]
   ]);
 }
 
 function renderExames() {
   const data = APP.dataCache.exames || {};
+
   if (!document.getElementById("examesFiltros")) return;
-  if (!document.getElementById("exames_setor_btn")) renderFiltros("exames", data, {});
+
+  if (!document.getElementById("exames_setor_btn")) {
+    renderFiltros("exames", data, {});
+  }
+
   const rows = filtroComum("exames", data.registros || []);
-  const pendentes = rows.filter(r => (r.exames || []).some(e => e.pendente));
+  const pendentes = rows.filter(function(r) {
+    return (r.exames || []).some(function(e) {
+      return e.pendente;
+    });
+  });
+
   setHtml("examesCards", [
     kpi("EX", "Total de colaboradores", rows.length, "Filtro atual"),
-    kpi("OK", "Exames realizados", sum(rows, r => (r.exames || []).filter(e => e.realizado).length), "Campos configurados"),
-    kpi("!", "Exames pendentes", sum(rows, r => (r.exames || []).filter(e => e.pendente).length), "Pendências"),
-    kpi("👥", "Com pendÃªncia", pendentes.length, "Colaboradores")
+    kpi("OK", "Exames realizados", sum(rows, function(r) { return (r.exames || []).filter(function(e) { return e.realizado; }).length; }), "Campos configurados"),
+    kpi("!", "Exames pendentes", sum(rows, function(r) { return (r.exames || []).filter(function(e) { return e.pendente; }).length; }), "Pendências"),
+    kpi("👥", "Com pendência", pendentes.length, "Colaboradores")
   ].join(""));
+
   if (!data.origem || data.origem.encontrada === false) {
-    setHtml("examesPendencias", '<div class="empty">' + esc((data.origem || {}).mensagem || "Fonte não encontrada.") + '</div>');
+    setHtml(
+      "examesPendencias",
+      '<div class="empty">' +
+      esc((data.origem || {}).mensagem || "Fonte não encontrada.") +
+      "</div>"
+    );
   } else {
     renderBars("examesPendencias", grupoPendenciasExames(rows), 12);
   }
+
   renderBars("examesSetor", group(pendentes, "setor"), 12);
-  renderTable("examesTabela", "exames", rows, [["mat", "Matrícula"], ["nome", "Nome"], ["status", "Status"], ["setor", "Setor"], ["funcao", "Função"]]);
+
+  renderTable("examesTabela", "exames", rows, [
+    ["mat", "Matrícula"],
+    ["nome", "Nome"],
+    ["status", "Status"],
+    ["setor", "Setor"],
+    ["funcao", "Função"]
+  ]);
 }
 
 function renderAcidentes() {
   const data = APP.dataCache.acidentes || {};
+
   if (!document.getElementById("acidentesFiltros")) return;
-  if (!document.getElementById("acidentes_setor_btn")) renderFiltros("acidentes", data, { anos: data.anos || [] });
+
+  if (!document.getElementById("acidentes_setor_btn")) {
+    renderFiltros("acidentes", data, { anos: data.anos || [] });
+  }
+
   const rows = filtroComum("acidentes", data.registros || []);
   const keys = distinct(rows, "key");
-  const repetidos = Object.values(countBy(rows, "key")).filter(v => v > 1).length;
+  const repetidos = Object.values(countBy(rows, "key")).filter(function(v) {
+    return v > 1;
+  }).length;
+
   setHtml("acidentesCards", [
     kpi("AB", "Total de acidentes", rows.length, "Eventos"),
     kpi("👥", "Colaboradores acidentados", keys.length, "Distintos"),
-    kpi("â†»", "Reincidentes", repetidos, "Mais de um evento"),
-    kpi("BIO", "Biológicos", rows.filter(r => norm(r.tipo).indexOf("BIO") !== -1).length, "Tipo de acidente"),
-    kpi("PF", "Com paciente-fonte", rows.filter(r => norm(r.pacienteFonte).indexOf("NAO") === -1 && norm(r.pacienteFonte) !== "NAO INFORMADO").length, "Quando informado")
+    kpi("↻", "Reincidentes", repetidos, "Mais de um evento"),
+    kpi("BIO", "Biológicos", rows.filter(function(r) { return norm(r.tipo).indexOf("BIO") !== -1; }).length, "Tipo de acidente"),
+    kpi("PF", "Com paciente-fonte", rows.filter(function(r) {
+      const valor = norm(r.pacienteFonte);
+      return valor && valor.indexOf("NAO") === -1 && valor !== "NAO INFORMADO";
+    }).length, "Quando informado")
   ].join(""));
+
   renderBars("acidentesMes", meses(rows), 12);
   renderBars("acidentesTipo", group(rows, "tipo"), 12);
   renderBars("acidentesSetor", group(rows, "setor"), 12);
   renderBars("acidentesTratativas", group(rows, "conclusao"), 8);
-  renderTable("acidentesTabela", "acidentes", rows, [["id", "ID"], ["mat", "Matrícula"], ["nome", "Nome"], ["status", "Status"], ["data", "Data"], ["tipo", "Tipo"], ["setor", "Setor"], ["funcao", "Função"], ["agente", "Agente"], ["parteCorpo", "Parte do corpo"]]);
+
+  renderTable("acidentesTabela", "acidentes", rows, [
+    ["id", "ID"],
+    ["mat", "Matrícula"],
+    ["nome", "Nome"],
+    ["status", "Status"],
+    ["data", "Data"],
+    ["tipo", "Tipo"],
+    ["setor", "Setor"],
+    ["funcao", "Função"],
+    ["agente", "Agente"],
+    ["parteCorpo", "Parte do corpo"]
+  ]);
 }
 
 function renderSeguimento() {
   const data = APP.dataCache.seguimento || {};
+
   if (!document.getElementById("seguimentoFiltros")) return;
-  const situacoes = Array.from(new Set((data.registros || []).map(r => r.statusEtapa || r.status).filter(Boolean))).sort();
-  if (!document.getElementById("seguimento_setor_btn")) renderFiltros("seguimento", data, { situacoes });
+
+  const situacoes = Array.from(
+    new Set(
+      (data.registros || []).map(function(r) {
+        return r.statusEtapa || r.status;
+      }).filter(Boolean)
+    )
+  ).sort();
+
+  if (!document.getElementById("seguimento_setor_btn")) {
+    renderFiltros("seguimento", data, { situacoes: situacoes });
+  }
+
   const rows = filtroComum("seguimento", data.registros || []);
+
   setHtml("seguimentoCards", [
     kpi("SG", "Seguimentos", rows.length, "Registros filtrados"),
-    kpi("PEP", "PEP realizada", rows.filter(r => norm(r.pepRealizada).indexOf("SIM") !== -1).length, "Quando informado"),
-    kpi("!", "Pendentes", rows.filter(r => norm(r.status).indexOf("PEND") !== -1).length, "Status atual"),
-    kpi("OK", "Finalizados", rows.filter(r => norm(r.status).indexOf("FINAL") !== -1 || norm(r.status).indexOf("ENCERR") !== -1).length, "Status atual")
+    kpi("PEP", "PEP realizada", rows.filter(function(r) { return norm(r.pepRealizada).indexOf("SIM") !== -1; }).length, "Quando informado"),
+    kpi("!", "Pendentes", rows.filter(function(r) { return norm(r.status).indexOf("PEND") !== -1; }).length, "Status atual"),
+    kpi("OK", "Finalizados", rows.filter(function(r) {
+      const status = norm(r.status);
+      return status.indexOf("FINAL") !== -1 || status.indexOf("ENCERR") !== -1;
+    }).length, "Status atual")
   ].join(""));
+
   renderBars("seguimentoStatus", group(rows, "status"), 10);
   renderBars("seguimentoTipo", group(rows, "tipoSeguimento"), 10);
+
   renderTable("seguimentoTabela", "seguimento", rows, [
-    ["mat", "Matrícula"], ["nome", "Nome"], ["tipoSeguimento", "Tipo de seguimento"], ["setor", "Setor"], ["funcao", "Função"], ["dataAcidente", "Data"], ["pepRealizada", "PEP"], ["status", "Status"], ["observacoes", "ObservaÃ§Ãµes"]
+    ["mat", "Matrícula"],
+    ["nome", "Nome"],
+    ["tipoSeguimento", "Tipo de seguimento"],
+    ["setor", "Setor"],
+    ["funcao", "Função"],
+    ["dataAcidente", "Data"],
+    ["pepRealizada", "PEP"],
+    ["status", "Status"],
+    ["observacoes", "Observações"]
   ]);
 }
 
-function exportarSeguimentoCsv() {
-  const rows = filtroComum("seguimento", (APP.dataCache.seguimento || {}).registros || []);
-  const header = ["Matrícula","Nome","Tipo de seguimento","Setor","Função","Data do acidente","PEP realizada","Status","ObservaÃ§Ãµes"];
-  const linhas = rows.map(r => [r.mat,r.nome,r.tipoSeguimento,r.setor,r.funcao,r.dataAcidente,r.pepRealizada,r.status,r.observacoes]);
-  baixarCsv("seguimento_exames.csv", [header].concat(linhas));
-}
+/* =========================
+   TABELAS E EXPORTAÇÃO
+========================= */
 
 function renderTable(target, module, rows, cols) {
   const sorted = ordenar(module, rows || []);
   const pageSize = (APP.config && APP.config.pageSize) || 50;
   const page = APP.pageIndex[module] || 0;
   const totalPages = Math.max(Math.ceil(sorted.length / pageSize), 1);
-  const start = Math.min(page, totalPages - 1) * pageSize;
+  const safePage = Math.min(page, totalPages - 1);
+  const start = safePage * pageSize;
   const current = sorted.slice(start, start + pageSize);
-  const head = cols.map(c => '<th><button class="sort" onclick="ordenarPor(\'' + module + '\',\'' + c[0] + '\')">' + esc(c[1]) + setaSort(module, c[0]) + '</button></th>').join("");
-  const body = current.map(r => '<tr>' + cols.map(c => '<td>' + esc(formatCell(r[c[0]])) + '</td>').join("") + '</tr>').join("");
-  const html = '<div class="table-wrap"><table><thead><tr>' + head + '</tr></thead><tbody>' + (body || '<tr><td colspan="' + cols.length + '">Sem registros</td></tr>') + '</tbody></table></div>' +
-    '<div class="pager"><span>Exibindo ' + (sorted.length ? start + 1 : 0) + '-' + Math.min(start + pageSize, sorted.length) + ' de ' + sorted.length + '</span><span><button class="btn-secondary" onclick="mudarPagina(\'' + module + '\',-1)">Anterior</button> <button class="btn-secondary" onclick="mudarPagina(\'' + module + '\',1)">PrÃ³xima</button></span></div>';
+
+  APP.pageIndex[module] = safePage;
+
+  const head = cols.map(function(col) {
+    return (
+      "<th>" +
+        '<button class="sort" type="button" onclick="ordenarPor(\'' + module + "','" + col[0] + '\')">' +
+          esc(col[1]) + setaSort(module, col[0]) +
+        "</button>" +
+      "</th>"
+    );
+  }).join("");
+
+  const body = current.map(function(r) {
+    return (
+      "<tr>" +
+      cols.map(function(col) {
+        return "<td>" + esc(formatCell(r[col[0]])) + "</td>";
+      }).join("") +
+      "</tr>"
+    );
+  }).join("");
+
+  const html =
+    '<div class="table-wrap">' +
+      "<table>" +
+        "<thead><tr>" + head + "</tr></thead>" +
+        "<tbody>" +
+          (body || '<tr><td colspan="' + cols.length + '">Sem registros</td></tr>') +
+        "</tbody>" +
+      "</table>" +
+    "</div>" +
+    '<div class="pager">' +
+      "<span>Exibindo " +
+        (sorted.length ? start + 1 : 0) +
+        "-" +
+        Math.min(start + pageSize, sorted.length) +
+        " de " +
+        sorted.length +
+      "</span>" +
+      "<span>" +
+        '<button class="btn-secondary" type="button" onclick="mudarPagina(\'' + module + "',-1)\">Anterior</button> " +
+        '<button class="btn-secondary" type="button" onclick="mudarPagina(\'' + module + "',1)\">Próxima</button>" +
+      "</span>" +
+    "</div>";
+
   setHtml(target, html);
 }
 
 function ordenarPor(module, key) {
-  const s = APP.sort[module] || {};
-  APP.sort[module] = { key, dir: s.key === key && s.dir === "asc" ? "desc" : "asc" };
+  const atual = APP.sort[module] || {};
+
+  APP.sort[module] = {
+    key: key,
+    dir: atual.key === key && atual.dir === "asc" ? "desc" : "asc"
+  };
+
   renderizarModulo(module);
 }
 
 function ordenar(module, rows) {
-  const s = APP.sort[module];
-  if (!s || !s.key) return rows;
-  return rows.slice().sort((a, b) => {
-    const av = formatCell(a[s.key]);
-    const bv = formatCell(b[s.key]);
-    return s.dir === "asc" ? av.localeCompare(bv, "pt-BR", { numeric: true }) : bv.localeCompare(av, "pt-BR", { numeric: true });
+  const sort = APP.sort[module];
+
+  if (!sort || !sort.key) return rows;
+
+  return rows.slice().sort(function(a, b) {
+    const av = formatCell(a[sort.key]);
+    const bv = formatCell(b[sort.key]);
+
+    return sort.dir === "asc"
+      ? av.localeCompare(bv, "pt-BR", { numeric: true })
+      : bv.localeCompare(av, "pt-BR", { numeric: true });
   });
 }
 
 function setaSort(module, key) {
-  const s = APP.sort[module] || {};
-  return s.key === key ? (s.dir === "asc" ? " ↑" : " ↓") : " ↕";
+  const sort = APP.sort[module] || {};
+
+  if (sort.key !== key) return " ↕";
+
+  return sort.dir === "asc" ? " ↑" : " ↓";
 }
 
 function mudarPagina(module, delta) {
-  APP.pageIndex[module] = Math.max(0, (APP.pageIndex[module] || 0) + delta);
+  APP.pageIndex[module] = Math.max(
+    0,
+    (APP.pageIndex[module] || 0) + delta
+  );
+
   renderizarModulo(module);
 }
 
@@ -725,164 +1228,539 @@ function exportarVacinasCsv() {
   const data = APP.dataCache.vacinas || {};
   const tipo = getValue("vacinasExportTipo") || "todas";
   const labels = { dt: "dT", hepB: "Hepatite B", covid: "COVID" };
-  const pend = filtroComum("vacinas", data.registros || []).filter(r => {
-    if (tipo === "todas") return (r.pendencias || []).length;
+
+  const rows = filtroComum("vacinas", data.registros || []).filter(function(r) {
+    if (tipo === "todas") {
+      return r.situacaoVacinal === "Pendente";
+    }
+
     return (r.pendencias || []).indexOf(labels[tipo]) !== -1;
   });
-  const header = tipo === "todas" ? ["Matrícula","Nome","Status","Setor","Função","Sexo","Pendências","Situação geral"] : ["Matrícula","Nome","Status","Setor","Função","Sexo","Vacina pendente","Situação da vacina"];
-  const linhas = pend.map(r => tipo === "todas"
-    ? [r.mat,r.nome,r.status,r.setor,r.funcao,r.sexo,(r.pendencias || []).join(" | "),r.situacaoVacinal]
-    : [r.mat,r.nome,r.status,r.setor,r.funcao,r.sexo,labels[tipo],((r.vacinas || {})[tipo] || {}).situacao || "Pendente"]);
-  baixarCsv("pendencias_vacinas_" + tipo + ".csv", [header].concat(linhas));
+
+  const header = tipo === "todas"
+    ? ["Matrícula", "Nome", "Status", "Setor", "Função", "Sexo", "dT", "Hepatite B", "COVID", "Situação geral"]
+    : ["Matrícula", "Nome", "Status", "Setor", "Função", "Sexo", "Vacina pendente", "Situação da vacina"];
+
+  const linhas = rows.map(function(r) {
+    if (tipo === "todas") {
+      return [
+        r.mat,
+        r.nome,
+        r.status,
+        r.setor,
+        r.funcao,
+        r.sexo,
+        r.dtSituacao,
+        r.hepBSituacao,
+        r.covidSituacao,
+        r.situacaoVacinal
+      ];
+    }
+
+    return [
+      r.mat,
+      r.nome,
+      r.status,
+      r.setor,
+      r.funcao,
+      r.sexo,
+      labels[tipo],
+      ((r.vacinas || {})[tipo] || {}).situacao || "Pendente"
+    ];
+  });
+
+  baixarCsv(
+    "pendencias_vacinas_" + tipo + ".csv",
+    [header].concat(linhas)
+  );
+}
+
+function exportarSeguimentoCsv() {
+  const rows = filtroComum(
+    "seguimento",
+    (APP.dataCache.seguimento || {}).registros || []
+  );
+
+  const header = [
+    "Matrícula",
+    "Nome",
+    "Tipo de seguimento",
+    "Setor",
+    "Função",
+    "Data do acidente",
+    "PEP realizada",
+    "Status",
+    "Observações"
+  ];
+
+  const linhas = rows.map(function(r) {
+    return [
+      r.mat,
+      r.nome,
+      r.tipoSeguimento,
+      r.setor,
+      r.funcao,
+      r.dataAcidente,
+      r.pepRealizada,
+      r.status,
+      r.observacoes
+    ];
+  });
+
+  baixarCsv("seguimento_exames.csv", [header].concat(linhas));
 }
 
 function baixarCsv(nome, linhas) {
-  const csv = linhas.map(row => row.map(v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"').join(";")).join("\n");
-  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+  const csv = linhas.map(function(row) {
+    return row.map(function(v) {
+      return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+    }).join(";");
+  }).join("\n");
+
+  const blob = new Blob(
+    ["\ufeff" + csv],
+    { type: "text/csv;charset=utf-8" }
+  );
+
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = nome; a.click();
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = nome;
+  link.click();
+
   URL.revokeObjectURL(url);
 }
 
+/* =========================
+   COMPONENTES
+========================= */
+
 function kpi(icon, label, value, sub) {
-  return '<div class="kpi-card"><div class="kpi-icon">' + esc(icon) + '</div><div><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong><small>' + esc(sub || "") + '</small></div></div>';
+  return (
+    '<div class="kpi-card">' +
+      '<div class="kpi-icon">' + esc(icon) + "</div>" +
+      "<div>" +
+        "<span>" + esc(label) + "</span>" +
+        "<strong>" + esc(value) + "</strong>" +
+        "<small>" + esc(sub || "") + "</small>" +
+      "</div>" +
+    "</div>"
+  );
 }
 
 function renderBars(id, rows, limit) {
   const list = (rows || []).slice(0, limit || 15);
-  if (!list.length) { setHtml(id, '<div class="empty">Sem dados</div>'); return; }
-  const max = Math.max.apply(null, list.map(r => Number(r.quantidade || 0))) || 1;
-  setHtml(id, '<div class="bar-list">' + list.map(r => {
-    const w = Math.max((Number(r.quantidade || 0) / max) * 100, 2);
-    const title = escAttr(r.detalhe ? r.nome + " | " + r.detalhe : r.nome);
-    return '<div class="bar-row" title="' + title + '"><div class="bar-label" title="' + title + '">' + esc(r.nome) + '</div><div class="bar-track"><div class="bar-fill" style="width:' + w + '%"></div></div><div class="bar-value">' + fmt(r.quantidade) + '</div></div>';
-  }).join("") + '</div>');
+
+  if (!list.length) {
+    setHtml(id, '<div class="empty">Sem dados</div>');
+    return;
+  }
+
+  const max = Math.max.apply(
+    null,
+    list.map(function(r) {
+      return Number(r.quantidade || 0);
+    })
+  ) || 1;
+
+  setHtml(
+    id,
+    '<div class="bar-list">' +
+    list.map(function(r) {
+      const largura = Math.max(
+        (Number(r.quantidade || 0) / max) * 100,
+        2
+      );
+
+      const title = escAttr(
+        r.detalhe ? r.nome + " | " + r.detalhe : r.nome
+      );
+
+      return (
+        '<div class="bar-row" title="' + title + '">' +
+          '<div class="bar-label" title="' + title + '">' + esc(r.nome) + "</div>" +
+          '<div class="bar-track"><div class="bar-fill" style="width:' + largura + '%"></div></div>' +
+          '<div class="bar-value">' + fmt(r.quantidade) + "</div>" +
+        "</div>"
+      );
+    }).join("") +
+    "</div>"
+  );
 }
 
 function renderHabitBars(id, rows) {
   const list = rows || [];
-  const max = Math.max.apply(null, list.map(r => Number(r.quantidade || 0))) || 1;
-  setHtml(id, '<div class="habit-list">' + list.map(r => {
-    const w = Math.max((Number(r.quantidade || 0) / max) * 100, r.quantidade ? 3 : 0);
-    return '<div class="habit-row"><div class="habit-label">' + esc(r.nome) + '</div><div class="habit-track"><div class="habit-fill" style="width:' + w + '%"></div></div><div class="habit-value">' + fmt(r.quantidade) + '</div></div>';
-  }).join("") + '</div>');
+  const max = Math.max.apply(
+    null,
+    list.map(function(r) {
+      return Number(r.quantidade || 0);
+    })
+  ) || 1;
+
+  setHtml(
+    id,
+    '<div class="habit-list">' +
+    list.map(function(r) {
+      const largura = Math.max(
+        (Number(r.quantidade || 0) / max) * 100,
+        r.quantidade ? 3 : 0
+      );
+
+      return (
+        '<div class="habit-row">' +
+          '<div class="habit-label">' + esc(r.nome) + "</div>" +
+          '<div class="habit-track"><div class="habit-fill" style="width:' + largura + '%"></div></div>' +
+          '<div class="habit-value">' + fmt(r.quantidade) + "</div>" +
+        "</div>"
+      );
+    }).join("") +
+    "</div>"
+  );
 }
 
 function renderComboChart(id, rows, limit) {
   const list = (rows || []).slice(0, limit || 12);
-  if (!list.length) { setHtml(id, '<div class="empty">Sem dados</div>'); return; }
-  const max = Math.max.apply(null, list.map(r => Math.max(Number(r.patologias || 0), Number(r.afastamentos || 0)))) || 1;
-  const maxLabel = fmt(max);
-  const points = list.map((r, i) => {
+
+  if (!list.length) {
+    setHtml(id, '<div class="empty">Sem dados</div>');
+    return;
+  }
+
+  const max = Math.max.apply(
+    null,
+    list.map(function(r) {
+      return Math.max(
+        Number(r.patologias || 0),
+        Number(r.afastamentos || 0)
+      );
+    })
+  ) || 1;
+
+  const points = list.map(function(r, i) {
     const x = ((i + 0.5) / list.length) * 100;
-    const y = Math.max(0, Math.min(100, 100 - ((Number(r.afastamentos || 0) / max) * 100)));
+    const y = Math.max(
+      0,
+      Math.min(
+        100,
+        100 - ((Number(r.afastamentos || 0) / max) * 100)
+      )
+    );
+
     return x.toFixed(2) + "," + y.toFixed(2);
   }).join(" ");
-  const lineSvg = '<svg class="combo-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + points + '" fill="none" stroke="#2d64ad" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
-  const chart = list.map(r => {
+
+  const lineSvg =
+    '<svg class="combo-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' +
+      '<polyline points="' + points + '" fill="none" stroke="#2d64ad" stroke-width="1.6" vector-effect="non-scaling-stroke"/>' +
+    "</svg>";
+
+  const chart = list.map(function(r) {
     const pat = Number(r.patologias || 0);
     const af = Number(r.afastamentos || 0);
     const barH = Math.max((pat / max) * 100, pat ? 2 : 0);
     const dotY = Math.max(0, Math.min(100, 100 - ((af / max) * 100)));
-    const title = escAttr((r.detalhe || ("Patologias: " + pat + " | Afastamentos: " + af)));
-    return '<div class="combo-item" title="' + title + '">' +
-      '<div class="combo-plot">' +
-        '<div class="combo-bar-value" style="bottom:calc(' + barH + '% + 8px)">' + fmt(pat) + '</div>' +
-        '<div class="combo-bar" style="height:' + barH + '%"></div>' +
-        '<div class="combo-dot" style="top:' + dotY + '%"></div>' +
-        '<div class="combo-dot-value" style="top:' + dotY + '%">' + fmt(af) + '</div>' +
-      '</div>' +
-      '<div class="combo-label" title="' + escAttr(r.nome) + '">' + esc(r.nome) + '</div>' +
-    '</div>';
+    const title = escAttr(r.detalhe || ("Patologias: " + pat + " | Afastamentos: " + af));
+
+    return (
+      '<div class="combo-item" title="' + title + '">' +
+        '<div class="combo-plot">' +
+          '<div class="combo-bar-value" style="bottom:calc(' + barH + '% + 8px)">' + fmt(pat) + "</div>" +
+          '<div class="combo-bar" style="height:' + barH + '%"></div>' +
+          '<div class="combo-dot" style="top:' + dotY + '%"></div>' +
+          '<div class="combo-dot-value" style="top:' + dotY + '%">' + fmt(af) + "</div>" +
+        "</div>" +
+        '<div class="combo-label" title="' + escAttr(r.nome) + '">' + esc(r.nome) + "</div>" +
+      "</div>"
+    );
   }).join("");
-  setHtml(id, '<div class="combo-head"><div class="combo-legend"><span><i class="bar"></i>Patologias</span><span><i class="line"></i>Afastamentos</span></div><span class="combo-scale">Escala m&aacute;xima: ' + esc(maxLabel) + '</span></div><div class="combo-chart" style="--cols:' + list.length + '">' + lineSvg + chart + '</div>');
+
+  setHtml(
+    id,
+    '<div class="combo-head">' +
+      '<div class="combo-legend">' +
+        '<span><i class="bar"></i>Patologias</span>' +
+        '<span><i class="line"></i>Afastamentos</span>' +
+      "</div>" +
+      '<span class="combo-scale">Escala máxima: ' + esc(fmt(max)) + "</span>" +
+    "</div>" +
+    '<div class="combo-chart" style="--cols:' + list.length + '">' +
+      lineSvg +
+      chart +
+    "</div>"
+  );
 }
 
+/* =========================
+   AGRUPAMENTOS
+========================= */
+
 function group(rows, key) {
-  const o = {};
-  (rows || []).forEach(r => { const k = r[key] || "Não informado"; o[k] = (o[k] || 0) + 1; });
-  return Object.keys(o).map(k => ({ nome: k, quantidade: o[k] })).sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome));
+  const objeto = {};
+
+  (rows || []).forEach(function(r) {
+    const nome = r[key] || "Não informado";
+    objeto[nome] = (objeto[nome] || 0) + 1;
+  });
+
+  return Object.keys(objeto).map(function(nome) {
+    return {
+      nome: nome,
+      quantidade: objeto[nome]
+    };
+  }).sort(function(a, b) {
+    return b.quantidade - a.quantidade || a.nome.localeCompare(b.nome);
+  });
 }
 
 function countBy(rows, key) {
-  const o = {};
-  (rows || []).forEach(r => { const k = r[key] || "Não informado"; o[k] = (o[k] || 0) + 1; });
-  return o;
+  const objeto = {};
+
+  (rows || []).forEach(function(r) {
+    const nome = r[key] || "Não informado";
+    objeto[nome] = (objeto[nome] || 0) + 1;
+  });
+
+  return objeto;
 }
 
 function grupoCids(rows, prop) {
-  const o = {};
-  (rows || []).forEach(r => (r[prop] || []).forEach(c => { const nome = prop === "familiasCid" ? c + " - " + descricaoCidPerfil(c) : c; o[nome] = (o[nome] || 0) + 1; }));
-  return Object.keys(o).map(k => ({ nome: k, quantidade: o[k] })).sort((a, b) => b.quantidade - a.quantidade);
-}
+  const objeto = {};
 
-function grupoPendenciasVac(rows) {
-  const o = {};
-  (rows || []).forEach(r => (r.pendencias || []).forEach(p => { o[p] = (o[p] || 0) + 1; }));
-  return Object.keys(o).map(k => ({ nome: k, quantidade: o[k] })).sort((a, b) => b.quantidade - a.quantidade);
+  (rows || []).forEach(function(r) {
+    (r[prop] || []).forEach(function(cid) {
+      const nome = prop === "familiasCid"
+        ? cid + " - " + descricaoCidPerfil(cid)
+        : cid;
+
+      objeto[nome] = (objeto[nome] || 0) + 1;
+    });
+  });
+
+  return Object.keys(objeto).map(function(nome) {
+    return {
+      nome: nome,
+      quantidade: objeto[nome]
+    };
+  }).sort(function(a, b) {
+    return b.quantidade - a.quantidade;
+  });
 }
 
 function grupoPendenciasExames(rows) {
-  const o = {};
-  (rows || []).forEach(r => (r.exames || []).forEach(e => { if (e.pendente) o[e.nome] = (o[e.nome] || 0) + 1; }));
-  return Object.keys(o).map(k => ({ nome: k, quantidade: o[k] })).sort((a, b) => b.quantidade - a.quantidade);
-}
+  const objeto = {};
 
-function cruzarPatAf(rows, eventos) {
-  const allowed = {};
-  rows.forEach(r => { allowed[r.key] = r.familiasCid || []; });
-  const o = {};
-  (eventos || []).forEach(e => {
-    if (!allowed[e.key]) return;
-    const f = e.familiaCid || "Não informado";
-    o[f] = (o[f] || 0) + 1;
+  (rows || []).forEach(function(r) {
+    (r.exames || []).forEach(function(e) {
+      if (e.pendente) {
+        objeto[e.nome] = (objeto[e.nome] || 0) + 1;
+      }
+    });
   });
-  return Object.keys(o).map(k => ({ nome: k + " - " + descricaoCid(k), quantidade: o[k] })).sort((a, b) => b.quantidade - a.quantidade);
-}
 
-function grupoHabitos(rows) {
-  return group(rows.map(r => ({ nome: "Atividade: " + (r.atividadeFisica || "Não informado") })), "nome")
-    .concat(group(rows.map(r => ({ nome: "Tabagismo: " + (r.tabagismo || "Não informado") })), "nome"))
-    .concat(group(rows.map(r => ({ nome: "Vacina: " + (r.vacCompleta ? "Completa" : "Pendente") })), "nome"));
+  return Object.keys(objeto).map(function(nome) {
+    return {
+      nome: nome,
+      quantidade: objeto[nome]
+    };
+  }).sort(function(a, b) {
+    return b.quantidade - a.quantidade;
+  });
 }
 
 function meses(rows) {
-  const nomes = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  const o = {};
-  (rows || []).forEach(r => { if (r.mes) o[r.mes] = (o[r.mes] || 0) + 1; });
-  return nomes.map((n, i) => ({ nome: n, quantidade: o[i + 1] || 0 }));
+  const nomes = [
+    "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+    "Jul", "Ago", "Set", "Out", "Nov", "Dez"
+  ];
+
+  const objeto = {};
+
+  (rows || []).forEach(function(r) {
+    if (r.mes) {
+      objeto[r.mes] = (objeto[r.mes] || 0) + 1;
+    }
+  });
+
+  return nomes.map(function(nome, i) {
+    return {
+      nome: nome,
+      quantidade: objeto[i + 1] || 0
+    };
+  });
 }
 
 function distinct(rows, key) {
-  const o = {};
-  (rows || []).forEach(r => { if (r[key]) o[r[key]] = true; });
-  return Object.keys(o);
+  const objeto = {};
+
+  (rows || []).forEach(function(r) {
+    if (r[key]) objeto[r[key]] = true;
+  });
+
+  return Object.keys(objeto);
 }
 
-function sum(rows, fn) { return (rows || []).reduce((acc, r) => acc + Number(fn(r) || 0), 0); }
-function media(total, qtd) { return qtd ? (total / qtd).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "0"; }
-function pct(num, den) { return den ? ((num / den) * 100).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%" : "0,0%"; }
-function fmt(v) { return Number(v || 0).toLocaleString("pt-BR"); }
-function formatCell(v) { return Array.isArray(v) ? v.join(", ") : (v == null ? "" : String(v)); }
-function norm(v) { return String(v == null ? "" : v).trim().replace(/\s+/g, " ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(); }
-function esc(v) { return String(v == null ? "" : v).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
-function escAttr(v) { return esc(v).replace(/'/g, "&#039;"); }
-function setText(id, value) { const el = document.getElementById(id); if (el) el.textContent = value == null ? "" : String(value); }
-function setHtml(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
-function getValue(id) { const el = document.getElementById(id); return el ? el.value : ""; }
-function mostrarLoading(txt) { setText("loadingText", txt || "Carregando..."); document.getElementById("loading").classList.remove("hidden"); document.getElementById("conteudo").classList.add("hidden"); }
-function esconderLoading() { document.getElementById("loading").classList.add("hidden"); document.getElementById("conteudo").classList.remove("hidden"); }
+/* =========================
+   UTILITÁRIOS
+========================= */
+
+function sum(rows, fn) {
+  return (rows || []).reduce(function(acc, r) {
+    return acc + Number(fn(r) || 0);
+  }, 0);
+}
+
+function media(total, qtd) {
+  return qtd
+    ? (total / qtd).toLocaleString("pt-BR", { maximumFractionDigits: 1 })
+    : "0";
+}
+
+function pct(num, den) {
+  return den
+    ? ((num / den) * 100).toLocaleString(
+        "pt-BR",
+        { minimumFractionDigits: 1, maximumFractionDigits: 1 }
+      ) + "%"
+    : "0,0%";
+}
+
+function fmt(v) {
+  return Number(v || 0).toLocaleString("pt-BR");
+}
+
+function formatCell(v) {
+  return Array.isArray(v)
+    ? v.join(", ")
+    : (v == null ? "" : String(v));
+}
+
+function norm(v) {
+  return String(v == null ? "" : v)
+    .trim()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
+function esc(v) {
+  return String(v == null ? "" : v).replace(
+    /[&<>"]/g,
+    function(c) {
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;"
+      }[c];
+    }
+  );
+}
+
+function escAttr(v) {
+  return esc(v).replace(/'/g, "&#039;");
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+
+  if (el) {
+    el.textContent = value == null ? "" : String(value);
+  }
+}
+
+function setHtml(id, html) {
+  const el = document.getElementById(id);
+
+  if (el) {
+    el.innerHTML = html;
+  }
+}
+
+function getValue(id) {
+  const el = document.getElementById(id);
+  return el ? el.value : "";
+}
+
+function mostrarLoading(txt) {
+  setText("loadingText", txt || "Carregando...");
+
+  const loading = document.getElementById("loading");
+  const conteudo = document.getElementById("conteudo");
+
+  if (loading) loading.classList.remove("hidden");
+  if (conteudo) conteudo.classList.add("hidden");
+}
+
+function esconderLoading() {
+  const loading = document.getElementById("loading");
+  const conteudo = document.getElementById("conteudo");
+
+  if (loading) loading.classList.add("hidden");
+  if (conteudo) conteudo.classList.remove("hidden");
+}
+
 function erroPortal(erro) {
   esconderLoading();
-  const msg = erro && erro.message ? erro.message : String(erro || "Erro desconhecido");
-  const detalhe = norm(msg).indexOf("AUTH") !== -1 || norm(msg).indexOf("PERMISSION") !== -1 || norm(msg).indexOf("AUTORIZ") !== -1
-    ? "Autorize o web app no Google ou ajuste a implantaÃ§Ã£o para executar como o proprietÃ¡rio."
-    : "Abra o Registro de execuÃ§Ã£o no Apps Script para ver a falha exata do backend.";
-  setHtml("conteudo", '<div class="empty"><b>Erro ao carregar dados</b><br>' + esc(msg) + '<br><span>' + esc(detalhe) + '</span></div>');
+
+  const msg = erro && erro.message
+    ? erro.message
+    : String(erro || "Erro desconhecido");
+
+  const detalhe =
+    norm(msg).indexOf("AUTH") !== -1 ||
+    norm(msg).indexOf("PERMISSION") !== -1 ||
+    norm(msg).indexOf("AUTORIZ") !== -1
+      ? "Autorize o web app no Google ou ajuste a implantação para executar como o proprietário."
+      : "Abra o Registro de execução no Apps Script para ver a falha exata do backend.";
+
+  setHtml(
+    "conteudo",
+    '<div class="empty">' +
+      "<b>Erro ao carregar dados</b><br>" +
+      esc(msg) +
+      "<br><span>" +
+      esc(detalhe) +
+      "</span>" +
+    "</div>"
+  );
 }
+
+function descricaoCidPerfil(f) {
+  return descricaoCid(f);
+}
+
 function descricaoCid(f) {
-  const map = { A:"Infecciosas", B:"Infecciosas", C:"Neoplasias", D:"Sangue/imunidade", E:"Endócrinas", F:"Mentais", G:"Sistema nervoso", H:"Olhos/ouvidos", I:"Circulatório", J:"RespiratÃ³rio", K:"Digestivo", L:"Pele", M:"Osteomuscular", N:"Geniturinário", O:"Gestação", P:"Perinatal", Q:"Congênitas", R:"Sintomas", S:"Lesões", T:"Lesões", U:"Especiais", V:"Externas", W:"Externas", X:"Externas", Y:"Externas", Z:"Fatores de saúde" };
+  const map = {
+    A: "Infecciosas",
+    B: "Infecciosas",
+    C: "Neoplasias",
+    D: "Sangue/imunidade",
+    E: "Endócrinas",
+    F: "Mentais",
+    G: "Sistema nervoso",
+    H: "Olhos/ouvidos",
+    I: "Circulatório",
+    J: "Respiratório",
+    K: "Digestivo",
+    L: "Pele",
+    M: "Osteomuscular",
+    N: "Geniturinário",
+    O: "Gestação",
+    P: "Perinatal",
+    Q: "Congênitas",
+    R: "Sintomas",
+    S: "Lesões",
+    T: "Lesões",
+    U: "Especiais",
+    V: "Externas",
+    W: "Externas",
+    X: "Externas",
+    Y: "Externas",
+    Z: "Fatores de saúde"
+  };
+
   return map[f] || "Não informado";
 }
 </script>

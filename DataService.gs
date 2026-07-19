@@ -1,32 +1,60 @@
+var BASE_CACHE_EXECUCAO = {};
+var MAPA_PERFIL_CACHE_EXECUCAO = null;
+
 function lerBase(baseKey, options) {
   const opt = options || {};
   const cfg = CONFIG.sheets[baseKey];
   if (!cfg) throw new Error("Base não configurada: " + baseKey);
 
+  const cacheKey = baseKey + (opt.somenteCabecalho ? "::cabecalho" : "::completa");
+  if (BASE_CACHE_EXECUCAO[cacheKey]) return BASE_CACHE_EXECUCAO[cacheKey];
+
   const t0 = Date.now();
   const sheet = getSpreadsheet().getSheetByName(cfg.name);
   if (!sheet) {
-    return { baseKey, encontrada: false, headers: [], registros: [], performance: { leituraMs: Date.now() - t0 } };
+    const ausente = {
+      baseKey, encontrada: false, headers: [], headerMap: {}, registros: [], linhasLidas: 0,
+      performance: { cacheMemoria: false, leituraMs: Date.now() - t0, processamentoMs: 0, totalMs: Date.now() - t0 }
+    };
+    BASE_CACHE_EXECUCAO[cacheKey] = ausente;
+    return ausente;
   }
 
+  const headerRow = cfg.headerRow || 1;
   const lastCol = sheet.getLastColumn();
   const maxRow = sheet.getLastRow();
-  const headerRow = cfg.headerRow || 1;
-  if (maxRow < headerRow || lastCol < 1) return { baseKey, encontrada: true, headers: [], registros: [] };
+  if (maxRow < headerRow || lastCol < 1) {
+    const vazia = {
+      baseKey, encontrada: true, headers: [], headerMap: {}, registros: [], linhasLidas: 0,
+      performance: { cacheMemoria: false, leituraMs: Date.now() - t0, processamentoMs: 0, totalMs: Date.now() - t0 }
+    };
+    BASE_CACHE_EXECUCAO[cacheKey] = vazia;
+    return vazia;
+  }
 
-  const headers = sheet.getRange(headerRow, 1, 1, lastCol).getDisplayValues()[0].map((h, i) => limparTexto(h) || ("COL_" + (i + 1)));
-  if (opt.somenteCabecalho) return { baseKey, encontrada: true, headers, registros: [] };
-
+  const headers = sheet.getRange(headerRow, 1, 1, lastCol).getDisplayValues()[0]
+    .map(function(h, i) { return limparTexto(h) || ("COL_" + (i + 1)); });
   const headerMap = montarMapaCabecalho(headers);
-  const keyIndexes = (cfg.keyAliases || []).map(a => headerMap[normalizarTexto(a)]).filter(i => i !== undefined);
+
+  if (opt.somenteCabecalho) {
+    const somenteCabecalho = {
+      baseKey, encontrada: true, headers, headerMap, registros: [], linhasLidas: 0,
+      performance: { cacheMemoria: false, leituraMs: Date.now() - t0, processamentoMs: 0, totalMs: Date.now() - t0 }
+    };
+    BASE_CACHE_EXECUCAO[cacheKey] = somenteCabecalho;
+    return somenteCabecalho;
+  }
+
   const scanStart = headerRow + 1;
   const rowsToScan = Math.max(maxRow - headerRow, 0);
+  const keyIndexes = obterIndicesChave_(cfg, headerMap);
   let lastUsefulRow = headerRow;
+
   if (rowsToScan > 0 && keyIndexes.length) {
-    keyIndexes.forEach(idx => {
-      const vals = sheet.getRange(scanStart, idx + 1, rowsToScan, 1).getDisplayValues();
-      for (let i = vals.length - 1; i >= 0; i--) {
-        if (limparTexto(vals[i][0])) {
+    keyIndexes.forEach(function(idx) {
+      const coluna = sheet.getRange(scanStart, idx + 1, rowsToScan, 1).getDisplayValues();
+      for (let i = coluna.length - 1; i >= 0; i--) {
+        if (limparTexto(coluna[i][0])) {
           lastUsefulRow = Math.max(lastUsefulRow, scanStart + i);
           break;
         }
@@ -40,22 +68,34 @@ function lerBase(baseKey, options) {
   const values = dataRows ? sheet.getRange(headerRow + 1, 1, dataRows, lastCol).getDisplayValues() : [];
   const leituraMs = Date.now() - t0;
   const t1 = Date.now();
-  const registros = values.map((row, idx) => montarRegistro(row, headers, headerMap, headerRow + idx + 1, cfg))
-    .filter(reg => regValido(reg));
-  return {
-    baseKey,
-    encontrada: true,
-    headers,
-    headerMap,
-    registros,
-    linhasLidas: values.length,
-    performance: { leituraMs, processamentoMs: Date.now() - t1, totalMs: Date.now() - t0 }
+  const registros = values
+    .map(function(row, idx) { return montarRegistro(row, headers, headerMap, headerRow + idx + 1, cfg); })
+    .filter(regValido);
+
+  const resultado = {
+    baseKey, encontrada: true, headers, headerMap, registros, linhasLidas: values.length,
+    performance: { cacheMemoria: false, leituraMs, processamentoMs: Date.now() - t1, totalMs: Date.now() - t0 }
   };
+  BASE_CACHE_EXECUCAO[cacheKey] = resultado;
+  return resultado;
+}
+
+function obterIndicesChave_(cfg, headerMap) {
+  const vistos = {};
+  const indices = [];
+  (cfg.keyAliases || []).forEach(function(alias) {
+    const idx = headerMap[normalizarTexto(alias)];
+    if (idx !== undefined && !vistos[idx]) {
+      vistos[idx] = true;
+      indices.push(idx);
+    }
+  });
+  return indices;
 }
 
 function montarMapaCabecalho(headers) {
   const map = {};
-  headers.forEach((h, i) => {
+  (headers || []).forEach(function(h, i) {
     const key = normalizarTexto(h);
     if (key && map[key] === undefined) map[key] = i;
   });
@@ -76,12 +116,12 @@ function valorAlias(reg, campo) {
 
 function montarRegistro(row, headers, headerMap, rowNumber, cfg) {
   const reg = { _rowNumber: rowNumber, _raw: row, _headers: headers };
-  headers.forEach((h, i) => { reg[h] = limparTexto(row[i]); });
-  Object.keys(CONFIG.aliases).forEach(campo => {
+  headers.forEach(function(h, i) { reg[h] = limparTexto(row[i]); });
+  Object.keys(CONFIG.aliases).forEach(function(campo) {
     const idx = idxAlias(headerMap, CONFIG.aliases[campo]);
     reg[campo] = idx >= 0 ? limparTexto(row[idx]) : "";
   });
-  Object.keys((cfg && cfg.fieldFallbacks) || {}).forEach(campo => {
+  Object.keys((cfg && cfg.fieldFallbacks) || {}).forEach(function(campo) {
     if (!limparTexto(reg[campo])) reg[campo] = limparTexto(reg[cfg.fieldFallbacks[campo]]);
   });
   reg.mat = limparTexto(reg.mat);
@@ -116,22 +156,31 @@ function linhaCabecalhoRepetida_(reg) {
 }
 
 function carregarRegistrosPerfil_() {
-  return lerBase("perfil").registros.map(r => ({
-    key: r.key, mat: r.mat, nome: r.nome, status: r.status, setor: r.setor, funcao: r.funcao,
-    sexo: r.sexo, idade: numeroSeguro(r.idade), nascimento: r.nascimento
-  }));
+  return lerBase("perfil").registros.map(function(r) {
+    return {
+      key: r.key, mat: r.mat, nome: r.nome, status: r.status, setor: r.setor, funcao: r.funcao,
+      sexo: r.sexo, idade: numeroSeguro(r.idade), nascimento: r.nascimento
+    };
+  });
 }
 
 function mapaPerfil_() {
+  if (MAPA_PERFIL_CACHE_EXECUCAO) return MAPA_PERFIL_CACHE_EXECUCAO;
   const mapa = {};
-  carregarRegistrosPerfil_().forEach(r => { if (r.key && !mapa[r.key]) mapa[r.key] = r; });
+  carregarRegistrosPerfil_().forEach(function(r) {
+    if (r.key && !mapa[r.key]) mapa[r.key] = r;
+  });
+  MAPA_PERFIL_CACHE_EXECUCAO = mapa;
   return mapa;
 }
 
 function opcoesComuns_(registros) {
   const setor = {}, funcao = {}, sexo = {}, status = {};
-  registros.forEach(r => {
-    addGrupo(setor, r.setor, 0); addGrupo(funcao, r.funcao, 0); addGrupo(sexo, r.sexo, 0); addGrupo(status, r.status, 0);
+  (registros || []).forEach(function(r) {
+    addGrupo(setor, r.setor, 0);
+    addGrupo(funcao, r.funcao, 0);
+    addGrupo(sexo, r.sexo, 0);
+    addGrupo(status, r.status, 0);
   });
   return {
     setores: Object.keys(setor).sort(),
@@ -141,14 +190,22 @@ function opcoesComuns_(registros) {
   };
 }
 
+function limparCacheExecucaoBases_() {
+  BASE_CACHE_EXECUCAO = {};
+  MAPA_PERFIL_CACHE_EXECUCAO = null;
+}
+
 function diagnosticarBases() {
-  return medirPerformance("diagnosticarBases", () => {
+  limparCacheExecucaoBases_();
+  return medirPerformance("diagnosticarBases", function() {
     const atual = {};
-    Object.keys(CONFIG.sheets).forEach(key => {
+    Object.keys(CONFIG.sheets).forEach(function(key) {
       const base = lerBase(key);
       const status = {}, setor = {}, funcao = {}, seen = {}, dup = {};
-      base.registros.forEach(r => {
-        addGrupo(status, r.status, 1); addGrupo(setor, r.setor, 1); addGrupo(funcao, r.funcao, 1);
+      base.registros.forEach(function(r) {
+        addGrupo(status, r.status, 1);
+        addGrupo(setor, r.setor, 1);
+        addGrupo(funcao, r.funcao, 1);
         if (r.key) {
           if (seen[r.key]) dup[r.key] = true;
           seen[r.key] = true;
@@ -166,10 +223,32 @@ function diagnosticarBases() {
         porStatus: toArrayGrupo(status),
         porSetor: toArrayGrupo(setor, 20),
         porFuncao: toArrayGrupo(funcao, 20),
-        excluidosPorFiltroAtual: base.registros.filter(r => !statusPadraoSelecionado(r.status)).length,
+        excluidosPorFiltroAtual: base.registros.filter(function(r) { return !statusPadraoSelecionado(r.status); }).length,
         performance: base.performance
       };
     });
-    return { updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"), bases: atual };
+    return {
+      updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
+      bases: atual
+    };
   });
+}
+
+function testarCacheExecucaoDataService() {
+  limparCacheExecucaoBases_();
+  const inicioPrimeira = Date.now();
+  const primeira = lerBase("perfil");
+  const primeiraMs = Date.now() - inicioPrimeira;
+  const inicioSegunda = Date.now();
+  const segunda = lerBase("perfil");
+  const segundaMs = Date.now() - inicioSegunda;
+  const resultado = {
+    sucesso: true,
+    primeiraLeituraMs: primeiraMs,
+    segundaLeituraMs: segundaMs,
+    mesmoObjetoEmMemoria: primeira === segunda,
+    registros: primeira.registros.length
+  };
+  Logger.log(JSON.stringify(resultado, null, 2));
+  return resultado;
 }
